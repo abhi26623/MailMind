@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Invalid or missing plugin parameter", { status: 400 });
   }
 
-  const redirectUri = new URL("/api/connect/callback", request.url).toString();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const redirectUri = `${appUrl}/api/connect/callback`;
 
   try {
     const { url, state } = await generateOAuthUrl(corsair, plugin, {

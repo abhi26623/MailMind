@@ -7,6 +7,7 @@ export function useKeyboard(handlers: Record<string, () => void>) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const combo = lastKey + e.key
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       if (handlers[combo]) { handlers[combo]!(); lastKey = ''; return }
       if (handlers[e.key]) { handlers[e.key]!(); lastKey = ''; return }
       lastKey = e.key

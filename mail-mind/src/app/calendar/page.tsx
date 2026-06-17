@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/prefer-nullish-coalescing, @typescript-eslint/no-unused-vars */
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
@@ -38,7 +39,7 @@ export default function CalendarPage() {
     { timeMin, timeMax },
     {
       refetchOnWindowFocus: false,
-      enabled: !!status?.googlecalendar,
+      enabled: !!status?.googlecalendar?.connected,
     }
   );
 
@@ -224,7 +225,7 @@ export default function CalendarPage() {
 
       {/* Calendar Week View Grid */}
       <div className="flex-1 flex flex-col p-6 overflow-hidden">
-        {!status?.googlecalendar ? (
+        {!status?.googlecalendar?.connected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4 max-w-md mx-auto text-center">
             <div className="p-4 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl">
               <svg className="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,7 +350,7 @@ export default function CalendarPage() {
                 onClick={() => setIsInviteOpen(false)}
                 className="text-slate-400 hover:text-slate-200 transition-all text-xs"
               >
-                ✕ Close
+                x Close
               </button>
             </div>
 
@@ -449,13 +450,13 @@ export default function CalendarPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200">
-                ⌨️ Calendar Shortcuts
+                {"\u2328\uFE0F"} Calendar Shortcuts
               </h3>
               <button
                 onClick={() => setShowCheatsheet(false)}
                 className="text-slate-400 hover:text-slate-200 transition-all text-xs"
               >
-                ✕ Close
+                x Close
               </button>
             </div>
 

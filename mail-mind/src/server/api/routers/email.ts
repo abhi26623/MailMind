@@ -8,22 +8,32 @@ export const emailRouter = createTRPCRouter({
    * Gmail and Google Calendar integrations.
    */
   getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
-    let gmail = false;
-    let googlecalendar = false;
+    let gmail = { connected: false, error: null as string | null };
+    let googlecalendar = { connected: false, error: null as string | null };
 
     try {
       await corsair.withTenant(ctx.tenantId).gmail.api.threads.list({ maxResults: 1, userId: "me" });
-      gmail = true;
-    } catch (e: any) {
-      // auth-missing means not connected; anything else (403, network) means connected but erroring
-      if (!String(e).includes("auth-missing")) gmail = true;
+      gmail = { connected: true, error: null };
+    } catch (e: unknown) {
+      const msg = String(e);
+      if (msg.includes("auth-missing")) {
+        gmail = { connected: false, error: "Not connected" };
+      } else {
+        // 403, scope issues, network errors -- NOT connected properly
+        gmail = { connected: false, error: msg.includes("403") ? "Missing permissions -- please reconnect Google" : msg };
+      }
     }
 
     try {
       await corsair.withTenant(ctx.tenantId).googlecalendar.api.events.getMany({});
-      googlecalendar = true;
-    } catch (e: any) {
-      if (!String(e).includes("auth-missing")) googlecalendar = true;
+      googlecalendar = { connected: true, error: null };
+    } catch (e: unknown) {
+      const msg = String(e);
+      if (msg.includes("auth-missing")) {
+        googlecalendar = { connected: false, error: "Not connected" };
+      } else {
+        googlecalendar = { connected: false, error: msg.includes("403") ? "Missing permissions -- please reconnect Google" : msg };
+      }
     }
 
     return { gmail, googlecalendar };
@@ -39,11 +49,26 @@ export const emailRouter = createTRPCRouter({
     } catch (error) {
       console.error("Error fetching threads from Corsair:", error);
       if (error && typeof error === 'object' && 'response' in error) {
-        console.error("Response data:", (error as any).response?.data);
+        console.error("Response data:", (error as Record<string, unknown>).response);
       }
       return { threads: [], resultSizeEstimate: 0, _error: String(error) };
     }
   }),
+
+  /** Fetch full details (messages, bodies) for a single thread. */
+  threadDetails: protectedProcedure
+    .input(z.object({ threadId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const res = await corsair
+          .withTenant(ctx.tenantId)
+          .gmail.api.threads.get({ userId: "me", id: input.threadId });
+        return res;
+      } catch (error) {
+        console.error(`Error fetching thread details for ${input.threadId}:`, error);
+        return { messages: [], _error: String(error) };
+      }
+    }),
 
   /** Archive a thread (remove INBOX label). */
   archive: protectedProcedure
@@ -149,7 +174,7 @@ export const emailRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  // ─── Calendar ────────────────────────────────────────────────────────────
+  // Calendar
 
   /** Fetch events for a date range (defaults to current week). */
   calendarEvents: protectedProcedure

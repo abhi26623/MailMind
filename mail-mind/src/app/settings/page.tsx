@@ -10,31 +10,50 @@ export default function SettingsPage() {
   const [gmailActive, setGmailActive] = useState(false);
   const [calendarActive, setCalendarActive] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
     if (status) {
-      setGmailActive(status.gmail);
-      setCalendarActive(status.googlecalendar);
+      setGmailActive(status.gmail.connected);
+      setCalendarActive(status.googlecalendar.connected);
     }
   }, [status]);
 
-  const handleToggleGmail = () => {
-    if (!gmailActive) {
+  const disconnectMutation = api.connect.disconnect.useMutation({
+    onSuccess: async (_, variables) => {
       setErrorMsg("");
+      setSuccessMsg(`${variables.plugin === "gmail" ? "Gmail" : "Google Calendar"} disconnected successfully.`);
+      if (variables.plugin === "gmail") setGmailActive(false);
+      else setCalendarActive(false);
+      await refetch();
+      setTimeout(() => setSuccessMsg(""), 3000);
+    },
+    onError: (err) => {
+      setErrorMsg(`Failed to disconnect: ${err.message}`);
+    },
+  });
+
+  const handleToggleGmail = () => {
+    setErrorMsg("");
+    setSuccessMsg("");
+    if (!gmailActive) {
       window.location.href = "/api/connect?plugin=gmail";
     } else {
-      setErrorMsg("Disconnecting is not implemented.");
+      disconnectMutation.mutate({ plugin: "gmail" });
     }
   };
 
   const handleToggleCalendar = () => {
+    setErrorMsg("");
+    setSuccessMsg("");
     if (!calendarActive) {
-      setErrorMsg("");
       window.location.href = "/api/connect?plugin=googlecalendar";
     } else {
-      setErrorMsg("Disconnecting is not implemented.");
+      disconnectMutation.mutate({ plugin: "googlecalendar" });
     }
   };
+
+  const isDisconnecting = disconnectMutation.isPending;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
@@ -79,7 +98,13 @@ export default function SettingsPage() {
                   <div>
                     <h3 className="font-bold text-slate-200">Gmail Integration</h3>
                     <p className="text-xs text-slate-400">
-                      {gmailActive ? "Connected ✓" : "Click toggle to connect"}
+                      {isDisconnecting && gmailActive
+                        ? "Disconnecting..."
+                        : gmailActive
+                        ? "Connected \u2713"
+                        : status?.gmail.error && status.gmail.error !== "Not connected"
+                        ? status.gmail.error
+                        : "Click toggle to connect"}
                     </p>
                   </div>
                 </div>
@@ -87,7 +112,8 @@ export default function SettingsPage() {
                 <button
                   id="toggle-gmail"
                   onClick={handleToggleGmail}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  disabled={isDisconnecting}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed ${
                     gmailActive ? "bg-indigo-600" : "bg-slate-700"
                   }`}
                 >
@@ -110,7 +136,13 @@ export default function SettingsPage() {
                   <div>
                     <h3 className="font-bold text-slate-200">Google Calendar</h3>
                     <p className="text-xs text-slate-400">
-                      {calendarActive ? "Connected ✓" : "Click toggle to connect"}
+                      {isDisconnecting && calendarActive
+                        ? "Disconnecting..."
+                        : calendarActive
+                        ? "Connected \u2713"
+                        : status?.googlecalendar.error && status.googlecalendar.error !== "Not connected"
+                        ? status.googlecalendar.error
+                        : "Click toggle to connect"}
                     </p>
                   </div>
                 </div>
@@ -118,7 +150,8 @@ export default function SettingsPage() {
                 <button
                   id="toggle-calendar"
                   onClick={handleToggleCalendar}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  disabled={isDisconnecting}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed ${
                     calendarActive ? "bg-indigo-600" : "bg-slate-700"
                   }`}
                 >
@@ -135,6 +168,12 @@ export default function SettingsPage() {
           {errorMsg && (
             <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-lg">
               {errorMsg}
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-lg">
+              {successMsg}
             </div>
           )}
 

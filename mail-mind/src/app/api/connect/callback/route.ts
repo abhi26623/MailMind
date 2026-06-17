@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const redirectUri = new URL("/api/connect/callback", request.url).toString();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const redirectUri = `${appUrl}/api/connect/callback`;
 
   try {
     await processOAuthCallback(corsair, {
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       redirectUri,
     });
 
-    const response = NextResponse.redirect(new URL("/settings", request.url));
+    const response = NextResponse.redirect(`${appUrl}/settings`);
     response.cookies.delete("oauth_state");
     return response;
   } catch (err) {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -5,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { useKeyboard } from "@/hooks/useKeyboard";
+import { authClient } from "@/server/better-auth/client";
 
 interface Thread {
   id: string;
@@ -20,17 +22,75 @@ interface Thread {
 
 export default function InboxPage() {
   const router = useRouter();
-  
-  // Queries
-  const { data: status } = api.email.getConnectionStatus.useQuery();
+
+  // Auth Session
+  const { data: session } = authClient.useSession();
+
+  // Seed mutation -- must complete before data queries run
+  const [seeded, setSeeded] = useState(false);
+
+  const seedMutation = api.connect.seedFromBetterAuth.useMutation({
+    onSuccess: () => {
+      console.log("Seeding and webhook registration completed.");
+      setSeeded(true);
+    },
+    onError: (err) => {
+      console.error("Seeding/webhook registration failed:", err);
+      // Still allow queries to run so the user sees the actual error
+      setSeeded(true);
+    }
+  });
+
+  useEffect(() => {
+    if (session?.user?.id && !seeded && !seedMutation.isPending) {
+      seedMutation.mutate();
+    }
+  }, [session?.user?.id]);
+
+  // Queries -- only enabled AFTER seed completes to avoid DEK race condition
+  const { data: status } = api.email.getConnectionStatus.useQuery(undefined, {
+    enabled: seeded,
+  });
+  const gmailConnected = !!status?.gmail?.connected;
+  const calendarConnected = !!status?.googlecalendar?.connected;
+  const gmailError = status?.gmail?.error;
+  const calendarError = status?.googlecalendar?.error;
   const { data, isLoading, error, refetch } = api.email.threads.useQuery(undefined, {
     refetchOnWindowFocus: false,
+    enabled: seeded,
   });
 
   const { data: calendarData, refetch: refetchCalendar } = api.email.calendarEvents.useQuery({}, {
     refetchOnWindowFocus: false,
-    enabled: !!status?.googlecalendar,
+    refetchInterval: 30000, // Auto-poll calendar every 30 seconds
+    enabled: seeded && calendarConnected,
   });
+
+
+
+  // Listen to Server-Sent Events (SSE) for real-time webhook updates
+  useEffect(() => {
+    const eventSource = new EventSource("/api/sse");
+
+    eventSource.onmessage = (event) => {
+      if (event.data === "refresh") {
+        console.log("Real-time webhook notification received. Refetching data...");
+        void refetch();
+        if (calendarConnected) {
+          void refetchCalendar();
+        }
+        showToast("New updates received!", "info");
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.warn("SSE connection lost. Reconnecting...");
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [refetch, refetchCalendar, calendarConnected]);
 
   // Mutations
   const archiveMutation = api.email.archive.useMutation({
@@ -102,6 +162,15 @@ export default function InboxPage() {
   const [showCheatsheet, setShowCheatsheet] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
+  // Fetch full details of the currently active thread
+  const { data: threadDetails, isLoading: isLoadingDetails } = api.email.threadDetails.useQuery(
+    { threadId: activeThread?.id ?? "" },
+    {
+      enabled: seeded && !!activeThread?.id,
+      refetchOnWindowFocus: false,
+    }
+  );
+
   // Modal States
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [composeTo, setComposeTo] = useState("");
@@ -143,7 +212,43 @@ export default function InboxPage() {
   // Check if thread is starred
   const isThreadStarred = (thread: Thread | null) => {
     if (!thread) return false;
-    return thread.messages?.some(m => m.labelIds?.includes("STARRED")) ?? false;
+    // We can only reliably check stars on the full thread details if it's the active thread, 
+    // or fallback to snippet messages if present
+    const messages = thread.id === activeThread?.id && threadDetails?.messages
+      ? threadDetails.messages
+      : thread.messages;
+    return messages?.some(m => m.labelIds?.includes("STARRED")) ?? false;
+  };
+
+  // Gmail body decoder helper
+  const getMessageBody = (payload: any): string => {
+    if (!payload) return "(No body)";
+    let bodyData = "";
+    if (payload.body?.data) {
+      bodyData = payload.body.data;
+    } else if (payload.parts) {
+      const textPart = payload.parts.find((p: any) => p.mimeType === "text/plain");
+      const htmlPart = payload.parts.find((p: any) => p.mimeType === "text/html");
+      const part = textPart || htmlPart; // prefer text, fallback to html
+
+      if (part?.body?.data) {
+        bodyData = part.body.data;
+      } else if (payload.parts[0]?.parts) { // nested parts (multipart/alternative)
+        const subPart = payload.parts[0].parts.find((p: any) => p.mimeType === "text/plain")
+          || payload.parts[0].parts.find((p: any) => p.mimeType === "text/html");
+        if (subPart?.body?.data) bodyData = subPart.body.data;
+      }
+    }
+
+    if (bodyData) {
+      try {
+        const base64 = bodyData.replace(/-/g, "+").replace(/_/g, "/");
+        return decodeURIComponent(escape(window.atob(base64)));
+      } catch (e) {
+        return "(Error decoding message body)";
+      }
+    }
+    return "(No readable body found)";
   };
 
   // Actions
@@ -216,13 +321,13 @@ export default function InboxPage() {
 
   // Gmail / Calendar connection redirect handlers
   const handleToggleGmail = () => {
-    if (!status?.gmail) {
+    if (!gmailConnected) {
       window.location.href = "/api/connect?plugin=gmail";
     }
   };
 
   const handleToggleCalendar = () => {
-    if (!status?.googlecalendar) {
+    if (!calendarConnected) {
       window.location.href = "/api/connect?plugin=googlecalendar";
     }
   };
@@ -251,13 +356,12 @@ export default function InboxPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${
-          toast.type === "success" 
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
             ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
             : toast.type === "error"
-            ? "bg-rose-500/10 border-rose-500/20 text-rose-400"
-            : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
-        }`}>
+              ? "bg-rose-500/10 border-rose-500/20 text-rose-400"
+              : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+          }`}>
           <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
@@ -278,29 +382,38 @@ export default function InboxPage() {
             {/* Gmail Connection Toggle */}
             <button
               onClick={handleToggleGmail}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                status?.gmail
+              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${gmailConnected
                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default"
                   : "bg-slate-800 hover:bg-slate-700 border-slate-700/50 text-slate-300 hover:text-slate-100"
-              }`}
+                }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${status?.gmail ? "bg-emerald-400" : "bg-slate-500 animate-pulse"}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? "bg-emerald-400" : "bg-slate-500 animate-pulse"}`} />
               <span>Gmail</span>
             </button>
 
             {/* Calendar Connection Toggle */}
             <button
               onClick={handleToggleCalendar}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                status?.googlecalendar
+              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${calendarConnected
                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default"
                   : "bg-slate-800 hover:bg-slate-700 border-slate-700/50 text-slate-300 hover:text-slate-100"
-              }`}
+                }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${status?.googlecalendar ? "bg-emerald-400" : "bg-slate-500 animate-pulse"}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${calendarConnected ? "bg-emerald-400" : "bg-slate-500 animate-pulse"}`} />
               <span>Calendar</span>
             </button>
           </div>
+
+          <Link
+            href="/agent"
+            id="agent-link"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 border border-indigo-500/30 rounded-xl transition-all text-white text-xs font-bold shadow-md shadow-indigo-600/10"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            Agent
+          </Link>
 
           <Link
             href="/settings"
@@ -315,7 +428,7 @@ export default function InboxPage() {
           <button
             onClick={() => {
               void refetch();
-              if (status?.googlecalendar) void refetchCalendar();
+              if (calendarConnected) void refetchCalendar();
             }}
             className="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 rounded-xl transition-all shadow-md shadow-indigo-600/10"
           >
@@ -329,9 +442,9 @@ export default function InboxPage() {
         {/* Navigation Sidebar & Hotkeys helper */}
         <div className="col-span-1 border-r border-slate-800/80 bg-slate-900/20 p-4 flex flex-col justify-between items-center text-slate-500">
           <div className="flex flex-col space-y-6 w-full items-center">
-            <button 
-              onClick={() => setIsComposeOpen(true)} 
-              title="Compose Email (C)" 
+            <button
+              onClick={() => setIsComposeOpen(true)}
+              title="Compose Email (C)"
               className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-500/20"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,8 +452,8 @@ export default function InboxPage() {
               </svg>
             </button>
 
-            <button 
-              onClick={() => setShowCheatsheet(true)} 
+            <button
+              onClick={() => setShowCheatsheet(true)}
               title="Keyboard Cheatsheet (?)"
               className="p-3 bg-slate-800/40 hover:bg-slate-800 text-slate-400 rounded-xl transition-all"
             >
@@ -404,13 +517,12 @@ export default function InboxPage() {
                     key={thread.id}
                     id={`thread-${thread.id}`}
                     onClick={() => handleSelectThread(thread, index)}
-                    className={`p-3.5 rounded-xl cursor-pointer transition-all border ${
-                      isActive
+                    className={`p-3.5 rounded-xl cursor-pointer transition-all border ${isActive
                         ? "bg-indigo-600/10 border-indigo-500/50 shadow-md shadow-indigo-500/5"
                         : isSelected
-                        ? "bg-slate-900/90 border-slate-700"
-                        : "bg-slate-900/30 border-slate-800/40 hover:bg-slate-900/50 hover:border-slate-800"
-                    }`}
+                          ? "bg-slate-900/90 border-slate-700"
+                          : "bg-slate-900/30 border-slate-800/40 hover:bg-slate-900/50 hover:border-slate-800"
+                      }`}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-bold text-[10px] bg-slate-800 text-indigo-300 px-2 py-0.5 rounded border border-slate-700/60">
@@ -439,7 +551,7 @@ export default function InboxPage() {
               {/* Toolbar */}
               <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800 px-4 py-2 rounded-xl backdrop-blur-md">
                 <div className="flex items-center space-x-2">
-                  <button 
+                  <button
                     onClick={() => handleArchive(activeThread)}
                     className="p-2 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg transition-all"
                     title="Archive (E)"
@@ -448,7 +560,7 @@ export default function InboxPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                     </svg>
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDelete(activeThread)}
                     className="p-2 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-all"
                     title="Delete (#)"
@@ -457,7 +569,7 @@ export default function InboxPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleToggleStar(activeThread)}
                     className={`p-2 hover:bg-slate-800 rounded-lg transition-all ${isThreadStarred(activeThread) ? "text-amber-400" : "text-slate-400 hover:text-amber-300"}`}
                     title="Toggle Star (S)"
@@ -469,7 +581,7 @@ export default function InboxPage() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <button 
+                  <button
                     onClick={handleOpenReply}
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-700/50 flex items-center space-x-1"
                   >
@@ -502,21 +614,42 @@ export default function InboxPage() {
               </div>
 
               {/* Messages details */}
-              {activeThread.messages && activeThread.messages.length > 0 && (
+              {isLoadingDetails ? (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 animate-pulse">
+                    Loading Messages...
+                  </h3>
+                  <div className="bg-slate-900/40 border border-slate-800/80 p-8 rounded-xl flex justify-center">
+                    <span className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></span>
+                  </div>
+                </div>
+              ) : threadDetails?.messages && threadDetails.messages.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">
-                    Messages ({activeThread.messages.length})
+                    Messages ({threadDetails.messages.length})
                   </h3>
                   <div className="space-y-3">
-                    {activeThread.messages.map((message) => (
-                      <div key={message.id} className="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl space-y-2">
-                        <div className="flex justify-between text-[10px] text-slate-500 border-b border-slate-800/40 pb-2">
-                          <span>Message ID: {message.id}</span>
-                          <span>{new Date(parseInt(message.internalDate)).toLocaleString()}</span>
+                    {threadDetails.messages.map((message: any) => {
+                      const bodyText = getMessageBody(message.payload);
+                      const isHtml = bodyText.includes("<html") || bodyText.includes("<body") || bodyText.includes("<div");
+
+                      return (
+                        <div key={message.id} className="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl space-y-3">
+                          <div className="flex justify-between items-center text-[10px] text-slate-500 border-b border-slate-800/40 pb-2">
+                            <span className="font-mono">ID: {message.id}</span>
+                            <span>{new Date(parseInt(message.internalDate)).toLocaleString()}</span>
+                          </div>
+                          {isHtml ? (
+                            <div
+                              className="text-xs text-slate-300 leading-relaxed overflow-x-auto max-w-full"
+                              dangerouslySetInnerHTML={{ __html: bodyText }}
+                            />
+                          ) : (
+                            <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{bodyText}</p>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{message.snippet}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -551,7 +684,7 @@ export default function InboxPage() {
               </Link>
             </div>
 
-            {!status?.googlecalendar ? (
+            {!calendarConnected ? (
               <div className="p-4 bg-slate-900/40 border border-slate-800 rounded-xl text-center space-y-2">
                 <p className="text-[11px] text-slate-400">Calendar integration not connected</p>
                 <button
@@ -572,7 +705,7 @@ export default function InboxPage() {
                   const endVal = event.end?.dateTime || event.end?.date;
                   const startTime = startVal ? new Date(startVal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "All Day";
                   const endTime = endVal ? new Date(endVal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
-                  
+
                   return (
                     <div key={event.id} className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl hover:border-slate-700/60 transition-all space-y-1">
                       <div className="flex justify-between items-start">
@@ -606,60 +739,60 @@ export default function InboxPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200">Compose New Email</h3>
-              <button 
+              <button
                 onClick={() => setIsComposeOpen(false)}
                 className="text-slate-400 hover:text-slate-200 transition-all text-xs"
               >
-                ✕ Close
+                x Close
               </button>
             </div>
 
             <form onSubmit={handleSendCompose} className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">To</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={composeTo}
                   onChange={(e) => setComposeTo(e.target.value)}
                   required
-                  placeholder="recipient@example.com" 
+                  placeholder="recipient@example.com"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Subject</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={composeSubject}
                   onChange={(e) => setComposeSubject(e.target.value)}
                   required
-                  placeholder="Subject details" 
+                  placeholder="Subject details"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Message Body</label>
-                <textarea 
+                <textarea
                   rows={6}
                   value={composeBody}
                   onChange={(e) => setComposeBody(e.target.value)}
                   required
-                  placeholder="Write your email here..." 
+                  placeholder="Write your email here..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
                 />
               </div>
 
               <div className="flex justify-end space-x-2 pt-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsComposeOpen(false)}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={sendMutation.isPending}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-indigo-600/10"
@@ -680,11 +813,11 @@ export default function InboxPage() {
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200">
                 Reply to Thread #{activeThread.id.substring(0, 8)}
               </h3>
-              <button 
+              <button
                 onClick={() => setIsReplyOpen(false)}
                 className="text-slate-400 hover:text-slate-200 transition-all text-xs"
               >
-                ✕ Close
+                x Close
               </button>
             </div>
 
@@ -698,25 +831,25 @@ export default function InboxPage() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Your Reply</label>
-                <textarea 
+                <textarea
                   rows={6}
                   value={replyBody}
                   onChange={(e) => setReplyBody(e.target.value)}
                   required
-                  placeholder="Write reply here..." 
+                  placeholder="Write reply here..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
                 />
               </div>
 
               <div className="flex justify-end space-x-2 pt-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsReplyOpen(false)}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={replyMutation.isPending}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-indigo-600/10"
@@ -735,13 +868,13 @@ export default function InboxPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200 flex items-center space-x-1.5">
-                <span>⌨️ Keyboard Shortcuts</span>
+                <span>{"\u2328\uFE0F"} Keyboard Shortcuts</span>
               </h3>
-              <button 
+              <button
                 onClick={() => setShowCheatsheet(false)}
                 className="text-slate-400 hover:text-slate-200 transition-all text-xs"
               >
-                ✕ Close
+                x Close
               </button>
             </div>
 
@@ -785,7 +918,7 @@ export default function InboxPage() {
             </div>
 
             <div className="pt-2 text-center">
-              <button 
+              <button
                 onClick={() => setShowCheatsheet(false)}
                 className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white"
               >
