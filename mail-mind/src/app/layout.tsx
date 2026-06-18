@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   title: "MailMind — AI Scheduling & Email Assistant",
   description: "Mark your availability. Let AI negotiate the meeting. Book with one click.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
+  other: {
+    "darkreader": "NO-DARKREADER",
+    "darkreader-lock": "true"
+  }
 };
 
 const geist = Geist({

@@ -18,10 +18,22 @@ interface Thread {
   historyId: string;
   messages?: Array<{
     id: string;
-    snippet: string;
-    internalDate: string;
-    labelIds?: string[];
+    payload?: any;
+    internalDate?: string;
   }>;
+}
+
+function ShadowEmail({ html, className }: { html: string; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (ref.current) {
+      const shadow = ref.current.shadowRoot || ref.current.attachShadow({ mode: 'open' });
+      shadow.innerHTML = html;
+    }
+  }, [html]);
+
+  return <div ref={ref} className={className} />;
 }
 
 export default function InboxPage() {
@@ -505,15 +517,13 @@ export default function InboxPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F6F8] text-forest-950 flex flex-col font-sans relative">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-wheat-500/20 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-[400px] w-[400px] translate-x-1/4 translate-y-1/4 rounded-full bg-emerald-500/10 blur-[100px]" />
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
-            ? "bg-white/90 border-emerald-500/20 text-emerald-600 backdrop-blur-md"
+            ? "bg-emerald-50 border-emerald-500/20 text-emerald-600"
             : toast.type === "error"
-              ? "bg-white/90 border-rose-500/20 text-rose-600 backdrop-blur-md"
-              : "bg-white/80 border-forest-900/10 text-forest-900 backdrop-blur-md"
+              ? "bg-rose-50 border-rose-500/20 text-rose-600"
+              : "bg-white border-forest-900/10 text-forest-900"
           }`}>
           <span className="text-xs font-semibold">{toast.message}</span>
         </div>
@@ -719,8 +729,8 @@ export default function InboxPage() {
                     className={`p-3.5 rounded-xl cursor-pointer transition-all border ${isActive
                         ? "bg-slate-800 text-white shadow-md border-transparent rounded-xl"
                         : isSelected
-                          ? "bg-white/80 border-transparent shadow-sm"
-                          : "bg-transparent border-transparent hover:bg-white/40"
+                          ? "bg-slate-100 border-transparent shadow-sm"
+                          : "bg-transparent border-transparent hover:bg-slate-50"
                       }`}
                   >
                     <div className="flex gap-3">
@@ -802,7 +812,7 @@ export default function InboxPage() {
           {activeThread ? (
             <div className="space-y-6 w-full max-w-3xl">
               {/* Toolbar */}
-              <div className="flex items-center justify-between bg-white/60 border border-forest-900/10 px-4 py-2 rounded-xl backdrop-blur-md sticky top-0 z-20 shadow-sm">
+              <div className="flex items-center justify-between bg-white border border-forest-900/10 px-4 py-2 rounded-xl sticky top-0 z-20 shadow-sm">
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleArchive(activeThread)}
@@ -911,9 +921,9 @@ export default function InboxPage() {
                               })}</span>
                             </div>
                             {isHtml ? (
-                              <div
+                              <ShadowEmail
                                 className={`text-sm leading-relaxed overflow-x-auto max-w-full ${isMe ? "text-cream-100" : "text-forest-900"}`}
-                                dangerouslySetInnerHTML={{ __html: bodyText }}
+                                html={bodyText}
                               />
                             ) : (
                               <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isMe ? "text-cream-100" : "text-forest-900"}`}>{bodyText}</p>
@@ -943,7 +953,7 @@ export default function InboxPage() {
         </div>
 
         {/* Sidebar: AI Insights & Calendar */}
-        <div className="hidden xl:flex w-[260px] 2xl:w-[300px] h-full flex-col flex-shrink-0 border-l border-forest-900/10 bg-white/40 backdrop-blur-md p-6 overflow-y-auto space-y-6 z-10">
+        <div className="hidden xl:flex w-[260px] 2xl:w-[300px] h-full flex-col flex-shrink-0 border-l border-forest-900/10 bg-slate-50 p-6 overflow-y-auto space-y-6 z-10">
           
           {/* AI Insights Panel */}
           {activeInsight && (
@@ -1053,7 +1063,7 @@ export default function InboxPage() {
 
       {/* MODAL: Compose */}
       {isComposeOpen && (
-        <div className="fixed inset-0 z-50 bg-forest-900/40 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-forest-900/40 flex items-center justify-center p-4">
           <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-forest-900">Compose New Email</h3>
@@ -1153,7 +1163,7 @@ export default function InboxPage() {
 
       {/* MODAL: Reply */}
       {isReplyOpen && activeThread && (
-        <div className="fixed inset-0 z-50 bg-forest-900/40 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-forest-900/40 flex items-center justify-center p-4">
           <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-forest-900">
@@ -1241,7 +1251,7 @@ export default function InboxPage() {
 
       {/* MODAL: Cheatsheet */}
       {showCheatsheet && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 flex items-center space-x-1.5">
