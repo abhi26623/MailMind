@@ -506,15 +506,13 @@ export default function CalendarPage() {
                           return (
                             <div
                               key={event.id}
-                              className={`absolute rounded-[10px] p-2 px-3 shadow-sm overflow-hidden flex flex-col justify-center ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer`}
+                              className={`absolute rounded-[10px] p-1 px-2 shadow-sm overflow-hidden flex flex-col items-center justify-center text-center ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer`}
                               style={{ left: style.left, width: style.width, top: '10px', bottom: '10px' }}
                               title={event.summary}
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <h4 className="font-extrabold text-[10px] leading-tight truncate">{event.summary || "(No Title)"}</h4>
-                                <div className="text-[9px] opacity-80 font-bold shrink-0">
-                                  {new Date(event.start.dateTime || event.start.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(' ', '')}
-                                </div>
+                              <h4 className="font-extrabold text-[10px] leading-tight w-full truncate">{event.summary || "(No Title)"}</h4>
+                              <div className="text-[9px] opacity-80 font-bold w-full truncate mt-0.5">
+                                {new Date(event.start.dateTime || event.start.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(' ', '')}
                               </div>
                             </div>
                           );
