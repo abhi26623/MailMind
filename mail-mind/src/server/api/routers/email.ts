@@ -39,21 +39,31 @@ export const emailRouter = createTRPCRouter({
     return { gmail, googlecalendar };
   }),
 
-  /** Fetch the 50 most recent threads. */
-  threads: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      const res = await corsair
-        .withTenant(ctx.tenantId)
-        .gmail.api.threads.list({ maxResults: 50, userId: "me" });
-      return res;
-    } catch (error) {
-      console.error("Error fetching threads from Corsair:", error);
-      if (error && typeof error === 'object' && 'response' in error) {
-        console.error("Response data:", (error as Record<string, unknown>).response);
+  /** Fetch threads with pagination (infinite scrolling). */
+  threads: protectedProcedure
+    .input(z.object({ cursor: z.string().nullish() }).optional())
+    .query(async ({ ctx, input }) => {
+      try {
+        const res = await corsair
+          .withTenant(ctx.tenantId)
+          .gmail.api.threads.list({ 
+            maxResults: 20, 
+            userId: "me",
+            pageToken: input?.cursor ?? undefined
+          });
+        return {
+          threads: res.threads || [],
+          nextCursor: res.nextPageToken || null,
+          resultSizeEstimate: res.resultSizeEstimate || 0
+        };
+      } catch (error) {
+        console.error("Error fetching threads from Corsair:", error);
+        if (error && typeof error === 'object' && 'response' in error) {
+          console.error("Response data:", (error as Record<string, unknown>).response);
+        }
+        return { threads: [], nextCursor: null, resultSizeEstimate: 0, _error: String(error) };
       }
-      return { threads: [], resultSizeEstimate: 0, _error: String(error) };
-    }
-  }),
+    }),
 
   /** Fetch full details (messages, bodies) for a single thread. */
   threadDetails: protectedProcedure

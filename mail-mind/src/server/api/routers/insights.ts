@@ -87,43 +87,59 @@ export const insightsRouter = createTRPCRouter({
     }),
 
   getInsightsBatch: publicProcedure
-    .input(z.object({
-      threadIds: z.array(z.string()),
-      threadMeta: z.array(z.object({
-        threadId: z.string(),
-        snippet: z.string().optional(),
-      })).optional(),
-    }))
+    .input(z.object({ threadIds: z.array(z.string()) }))
     .query(async ({ ctx, input }) => {
       if (!input.threadIds.length) return [];
       const results = await db.query.emailInsights.findMany({
         where: (insights, { inArray }) => inArray(insights.threadId, input.threadIds)
       });
+      return results;
+    }),
 
-      // Auto-generate insights for threads that don't have them yet
-      const existingIds = new Set(results.map(r => r.threadId));
-      const missingIds = input.threadIds.filter(id => !existingIds.has(id));
+  /** Mutation (POST) to generate insights for threads that don't have them yet.
+   *  Uses POST body so snippets don't blow up the URL query string. */
+  generateMissingInsights: publicProcedure
+    .input(z.object({
+      threadMeta: z.array(z.object({
+        threadId: z.string(),
+        snippet: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!input.threadMeta.length) return { generated: 0 };
 
-      if (missingIds.length > 0 && input.threadMeta) {
-        const generatePromises = missingIds.map(async (threadId) => {
-          const meta = input.threadMeta!.find(m => m.threadId === threadId);
-          if (!meta?.snippet) return null;
-          try {
-            return await generateAndSaveInsight({
-              threadId,
-              snippet: meta.snippet,
-            });
-          } catch (e) {
-            console.error(`Failed to generate insight for ${threadId}:`, e);
-            return null;
-          }
-        });
+      // Check which ones already exist
+      const threadIds = input.threadMeta.map(m => m.threadId);
+      const existing = await db.query.emailInsights.findMany({
+        where: (insights, { inArray }) => inArray(insights.threadId, threadIds)
+      });
+      const existingIds = new Set(existing.map(r => r.threadId));
+      const missing = input.threadMeta.filter(m => !existingIds.has(m.threadId));
 
-        const newInsights = await Promise.all(generatePromises);
-        const validNew = newInsights.filter((x): x is NonNullable<typeof x> => x !== null);
-        return [...results, ...validNew];
+      if (missing.length === 0) return { generated: 0 };
+
+      // Generate in parallel (cap at 10 concurrent to avoid rate limits)
+      const batchSize = 10;
+      let generated = 0;
+      for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        const results = await Promise.all(
+          batch.map(async (meta) => {
+            if (!meta.snippet) return null;
+            try {
+              return await generateAndSaveInsight({
+                threadId: meta.threadId,
+                snippet: meta.snippet,
+              });
+            } catch (e) {
+              console.error(`Failed to generate insight for ${meta.threadId}:`, e);
+              return null;
+            }
+          })
+        );
+        generated += results.filter(Boolean).length;
       }
 
-      return results;
+      return { generated };
     }),
 });

@@ -1,8 +1,7 @@
 
 "use client";
-"use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/app/_components/auth-buttons";
 import { useRouter } from "next/navigation";
@@ -59,10 +58,26 @@ export default function InboxPage() {
   const calendarConnected = !!status?.googlecalendar?.connected;
   const gmailError = status?.gmail?.error;
   const calendarError = status?.googlecalendar?.error;
-  const { data, isLoading, error, refetch } = api.email.threads.useQuery(undefined, {
+  const { 
+    data, 
+    isLoading, 
+    error, 
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = api.email.threads.useInfiniteQuery({}, {
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     refetchOnWindowFocus: false,
     enabled: seeded,
   });
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const bottom = e.currentTarget.scrollHeight - e.currentTarget.scrollTop <= e.currentTarget.clientHeight + 100;
+    if (bottom && hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  };
 
   const { data: calendarData, refetch: refetchCalendar } = api.email.calendarEvents.useQuery({}, {
     refetchOnWindowFocus: false,
@@ -156,8 +171,7 @@ export default function InboxPage() {
   // Thread Memoization
   const threads: Thread[] = useMemo(() => {
     if (!data) return [];
-    const rawData = data as unknown as { threads?: Thread[] };
-    return rawData.threads ?? [];
+    return data.pages.flatMap((page) => page.threads as unknown as Thread[]) ?? [];
   }, [data]);
 
   // States
@@ -170,14 +184,33 @@ export default function InboxPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const threadIds = useMemo(() => threads.map(t => t.id), [threads]);
-  const threadMeta = useMemo(() => threads.map(t => ({
-    threadId: t.id,
-    snippet: t.snippet || undefined,
-  })), [threads]);
-  const { data: insights } = api.insights.getInsightsBatch.useQuery(
-    { threadIds, threadMeta },
+  const { data: insights, refetch: refetchInsights } = api.insights.getInsightsBatch.useQuery(
+    { threadIds },
     { enabled: threadIds.length > 0 }
   );
+
+  // Trigger insight generation for threads missing insights (POST mutation avoids URL size limits)
+  const generateMutation = api.insights.generateMissingInsights.useMutation({
+    onSuccess: (data) => {
+      if (data.generated > 0) {
+        void refetchInsights();
+      }
+    },
+  });
+  const generationTriggered = useRef<string>("");
+  useEffect(() => {
+    if (!insights || !threads.length) return;
+    const existingIds = new Set(insights.map((i: any) => i.threadId));
+    const missing = threads.filter(t => !existingIds.has(t.id) && t.snippet);
+    if (missing.length === 0) return;
+    // Dedupe: only trigger once per unique set of missing IDs
+    const key = missing.map(m => m.id).sort().join(",");
+    if (generationTriggered.current === key) return;
+    generationTriggered.current = key;
+    generateMutation.mutate({
+      threadMeta: missing.map(t => ({ threadId: t.id, snippet: t.snippet || undefined })),
+    });
+  }, [insights, threads]);
 
   // Fetch full details of the currently active thread
   const { data: threadDetails, isLoading: isLoadingDetails } = api.email.threadDetails.useQuery(
@@ -581,7 +614,10 @@ export default function InboxPage() {
         </div>
 
         {/* Thread List */}
-        <div className="w-[320px] xl:w-[380px] flex-shrink-0 border-r border-forest-900/10 bg-white h-full overflow-y-auto flex flex-col">
+        <div 
+          className="w-[320px] xl:w-[380px] flex-shrink-0 border-r border-forest-900/10 bg-white h-full overflow-y-auto flex flex-col"
+          onScroll={handleScroll}
+        >
           <div className="p-4 border-b border-forest-900/10 bg-white sticky top-0 z-10 flex flex-col space-y-3">
             <div className="flex justify-between items-center">
               <h2 className="font-bold text-sm text-slate-800">{activeCategory ? activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1) : "Inbox"}</h2>
@@ -630,10 +666,10 @@ export default function InboxPage() {
                 Connect Gmail
               </button>
             </div>
-          ) : error || (data as any)?._error ? (
+          ) : error || (data?.pages?.[0] as any)?._error ? (
             <div className="p-8 text-center text-forest-500">
               <p className="text-red-400 font-medium mb-3">Failed to load threads</p>
-              <p className="text-xs">{(data as any)?._error || error?.message}</p>
+              <p className="text-xs">{(data?.pages?.[0] as any)?._error || error?.message}</p>
             </div>
           ) : threads.length === 0 ? (
             <div className="p-8 text-center text-forest-500">
@@ -724,6 +760,12 @@ export default function InboxPage() {
                   </div>
                 );
               })}
+              {isFetchingNextPage && (
+                <div className="p-4 text-center text-xs text-slate-500 font-medium flex items-center justify-center gap-2">
+                  <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+                  Loading more...
+                </div>
+              )}
             </div>
           )}
         </div>
