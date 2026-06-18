@@ -87,12 +87,43 @@ export const insightsRouter = createTRPCRouter({
     }),
 
   getInsightsBatch: publicProcedure
-    .input(z.object({ threadIds: z.array(z.string()) }))
+    .input(z.object({
+      threadIds: z.array(z.string()),
+      threadMeta: z.array(z.object({
+        threadId: z.string(),
+        snippet: z.string().optional(),
+      })).optional(),
+    }))
     .query(async ({ ctx, input }) => {
       if (!input.threadIds.length) return [];
       const results = await db.query.emailInsights.findMany({
         where: (insights, { inArray }) => inArray(insights.threadId, input.threadIds)
       });
+
+      // Auto-generate insights for threads that don't have them yet
+      const existingIds = new Set(results.map(r => r.threadId));
+      const missingIds = input.threadIds.filter(id => !existingIds.has(id));
+
+      if (missingIds.length > 0 && input.threadMeta) {
+        const generatePromises = missingIds.map(async (threadId) => {
+          const meta = input.threadMeta!.find(m => m.threadId === threadId);
+          if (!meta?.snippet) return null;
+          try {
+            return await generateAndSaveInsight({
+              threadId,
+              snippet: meta.snippet,
+            });
+          } catch (e) {
+            console.error(`Failed to generate insight for ${threadId}:`, e);
+            return null;
+          }
+        });
+
+        const newInsights = await Promise.all(generatePromises);
+        const validNew = newInsights.filter((x): x is NonNullable<typeof x> => x !== null);
+        return [...results, ...validNew];
+      }
+
       return results;
     }),
 });

@@ -167,10 +167,15 @@ export default function InboxPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const threadIds = useMemo(() => threads.map(t => t.id), [threads]);
+  const threadMeta = useMemo(() => threads.map(t => ({
+    threadId: t.id,
+    snippet: t.snippet || undefined,
+  })), [threads]);
   const { data: insights } = api.insights.getInsightsBatch.useQuery(
-    { threadIds },
+    { threadIds, threadMeta },
     { enabled: threadIds.length > 0 }
   );
 
@@ -200,9 +205,32 @@ export default function InboxPage() {
     }, 3000);
   };
 
+  // Category mapping: map AI categories to sidebar categories
+  const categoryMap: Record<string, string> = {
+    work: "work",
+    needs_reply: "work",
+    meeting: "events",
+    newsletter: "social",
+    social: "social",
+    personal: "personal",
+    receipt: "personal",
+    other: "other",
+  };
+
+  // Filter threads by category
+  const filteredThreads = useMemo(() => {
+    if (!activeCategory) return threads;
+    return threads.filter(thread => {
+      const insight = insights?.find((i: any) => i.threadId === thread.id);
+      if (!insight) return false;
+      const mapped = categoryMap[(insight as any).category] || "other";
+      return mapped === activeCategory;
+    });
+  }, [threads, activeCategory, insights]);
+
   // Helper: Get active / selected thread
-  const selectedThread = threads[selectedIndex] ?? null;
-  const activeInsight = insights?.find((i: { threadId: string }) => i.threadId === activeThread?.id);
+  const selectedThread = filteredThreads[selectedIndex] ?? null;
+  const activeInsight = insights?.find((i: any) => i && i.threadId === activeThread?.id);
 
   const scheduleMutation = api.workflow.scheduleFromEmail.useMutation({
     onSuccess: () => {
@@ -245,20 +273,26 @@ export default function InboxPage() {
 
   // Active Thread update on selection or load
   useEffect(() => {
-    if (threads.length > 0) {
-      if (!activeThread || !threads.some(t => t.id === activeThread.id)) {
-        setActiveThread(threads[0] ?? null);
+    if (filteredThreads.length > 0) {
+      if (!activeThread || !filteredThreads.some(t => t.id === activeThread.id)) {
+        setActiveThread(filteredThreads[0] ?? null);
         setSelectedIndex(0);
       }
     } else {
       setActiveThread(null);
     }
-  }, [threads, activeThread]);
+  }, [filteredThreads, activeThread]);
 
   // Sync index with activeThread
   const handleSelectThread = (thread: Thread, index: number) => {
     setSelectedIndex(index);
     setActiveThread(thread);
+  };
+
+  // Handle category selection
+  const handleCategorySelect = (category: string | null) => {
+    setActiveCategory(category);
+    setSelectedIndex(0);
   };
 
   // Check if thread is starred
@@ -333,17 +367,17 @@ export default function InboxPage() {
   };
 
   const handleSelectNext = () => {
-    if (threads.length === 0) return;
-    const nextIdx = Math.min(selectedIndex + 1, threads.length - 1);
+    if (filteredThreads.length === 0) return;
+    const nextIdx = Math.min(selectedIndex + 1, filteredThreads.length - 1);
     setSelectedIndex(nextIdx);
-    setActiveThread(threads[nextIdx] ?? null);
+    setActiveThread(filteredThreads[nextIdx] ?? null);
   };
 
   const handleSelectPrev = () => {
-    if (threads.length === 0) return;
+    if (filteredThreads.length === 0) return;
     const prevIdx = Math.max(selectedIndex - 1, 0);
     setSelectedIndex(prevIdx);
-    setActiveThread(threads[prevIdx] ?? null);
+    setActiveThread(filteredThreads[prevIdx] ?? null);
   };
 
   // Keyboard Hook
@@ -485,7 +519,7 @@ export default function InboxPage() {
 
             {/* Core Folders */}
             <div className="space-y-1 w-full flex flex-col items-start">
-              <button className={`py-3 bg-wheat-100 text-wheat-700 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => handleCategorySelect(null)} className={`py-3 ${!activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Inbox</span>}
               </button>
@@ -514,21 +548,21 @@ export default function InboxPage() {
             <div className="pt-4 border-t border-forest-900/10 w-full flex flex-col items-start mt-4">
               {isSidebarOpen && <span className="text-[9px] font-bold uppercase tracking-widest text-forest-400 px-3 mb-2">Categories</span>}
               <div className="space-y-1 w-full">
-                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm flex-shrink-0" />
-                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Work</span>}
+                <button onClick={() => handleCategorySelect("work")} className={`py-3 ${activeCategory === "work" ? "bg-purple-50 text-purple-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className={`w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm flex-shrink-0 ${activeCategory === "work" ? "ring-2 ring-purple-300" : ""}`} />
+                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "work" ? "text-purple-700 font-semibold" : "text-forest-700"}`}>Work</span>}
                 </button>
-                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm flex-shrink-0" />
-                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Social</span>}
+                <button onClick={() => handleCategorySelect("social")} className={`py-3 ${activeCategory === "social" ? "bg-blue-50 text-blue-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className={`w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm flex-shrink-0 ${activeCategory === "social" ? "ring-2 ring-blue-300" : ""}`} />
+                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "social" ? "text-blue-700 font-semibold" : "text-forest-700"}`}>Social</span>}
                 </button>
-                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm flex-shrink-0" />
-                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Events</span>}
+                <button onClick={() => handleCategorySelect("events")} className={`py-3 ${activeCategory === "events" ? "bg-cyan-50 text-cyan-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className={`w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm flex-shrink-0 ${activeCategory === "events" ? "ring-2 ring-cyan-300" : ""}`} />
+                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "events" ? "text-cyan-700 font-semibold" : "text-forest-700"}`}>Events</span>}
                 </button>
-                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm flex-shrink-0" />
-                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Personal</span>}
+                <button onClick={() => handleCategorySelect("personal")} className={`py-3 ${activeCategory === "personal" ? "bg-amber-50 text-amber-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className={`w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm flex-shrink-0 ${activeCategory === "personal" ? "ring-2 ring-amber-300" : ""}`} />
+                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "personal" ? "text-amber-700 font-semibold" : "text-forest-700"}`}>Personal</span>}
                 </button>
               </div>
             </div>
@@ -550,10 +584,17 @@ export default function InboxPage() {
         <div className="w-[320px] xl:w-[380px] flex-shrink-0 border-r border-forest-900/10 bg-white h-full overflow-y-auto flex flex-col">
           <div className="p-4 border-b border-forest-900/10 bg-white sticky top-0 z-10 flex flex-col space-y-3">
             <div className="flex justify-between items-center">
-              <h2 className="font-bold text-sm text-slate-800">Inbox</h2>
-              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 border border-slate-200 font-medium shadow-sm">
-                {threads.length} total
-              </span>
+              <h2 className="font-bold text-sm text-slate-800">{activeCategory ? activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1) : "Inbox"}</h2>
+              <div className="flex items-center gap-2">
+                {activeCategory && (
+                  <button onClick={() => handleCategorySelect(null)} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                    Clear
+                  </button>
+                )}
+                <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 border border-slate-200 font-medium shadow-sm">
+                  {filteredThreads.length} total
+                </span>
+              </div>
             </div>
             <div className="relative">
               <input 
@@ -600,10 +641,13 @@ export default function InboxPage() {
             </div>
           ) : (
             <div className="p-2 space-y-1">
-              {threads.map((thread, index) => {
+              {filteredThreads.map((thread, index) => {
                 const isSelected = index === selectedIndex;
                 const isActive = thread.id === activeThread?.id;
                 const isStarred = isThreadStarred(thread);
+                const threadInsight = insights?.find((i: any) => i.threadId === thread.id);
+                const priority = (threadInsight as any)?.priority;
+                const category = (threadInsight as any)?.category;
                 return (
                   <div
                     key={thread.id}
@@ -629,13 +673,19 @@ export default function InboxPage() {
                           <span className={`font-bold text-xs truncate pr-2 ${isActive ? "text-white" : "text-slate-900"}`}>
                             {thread.snippet ? thread.snippet.substring(0, 30) + "..." : "Thread " + thread.id.substring(0, 6)}
                           </span>
-                          <div className="flex space-x-1.5 items-center flex-shrink-0">
-                            {/* Visual Priority Dots */}
-                            {insights?.find((i: any) => i.threadId === thread.id)?.priority === "urgent" && (
+                          <div className="flex space-x-1 items-center flex-shrink-0">
+                            {/* Priority Label */}
+                            {priority === "urgent" && (
                               <span className={`px-1.5 py-0.5 rounded flex items-center text-[9px] font-bold uppercase tracking-wider shadow-sm border ${isActive ? "bg-rose-500 border-rose-400 text-white" : "bg-rose-100 border-rose-200 text-rose-600"}`}>Urgent</span>
                             )}
-                            {insights?.find((i: any) => i.threadId === thread.id)?.priority === "high" && (
+                            {priority === "high" && (
                               <span className={`px-1.5 py-0.5 rounded flex items-center text-[9px] font-bold uppercase tracking-wider shadow-sm border ${isActive ? "bg-amber-400 border-amber-300 text-amber-900" : "bg-amber-100 border-amber-200 text-amber-600"}`}>High</span>
+                            )}
+                            {priority === "normal" && (
+                              <span className={`px-1.5 py-0.5 rounded flex items-center text-[9px] font-bold uppercase tracking-wider shadow-sm border ${isActive ? "bg-slate-500 border-slate-400 text-white" : "bg-slate-100 border-slate-200 text-slate-500"}`}>Normal</span>
+                            )}
+                            {priority === "low" && (
+                              <span className={`px-1.5 py-0.5 rounded flex items-center text-[9px] font-bold uppercase tracking-wider shadow-sm border ${isActive ? "bg-forest-600 border-forest-500 text-white" : "bg-forest-50 border-forest-200 text-forest-500"}`}>Low</span>
                             )}
                             {isStarred && (
                               <svg className="w-3.5 h-3.5 text-amber-400 fill-amber-400 drop-shadow-md" viewBox="0 0 20 20" fill="currentColor">
@@ -644,9 +694,31 @@ export default function InboxPage() {
                             )}
                           </div>
                         </div>
-                        <p className={`text-xs line-clamp-2 leading-relaxed ${isSelected ? "text-slate-200" : "text-slate-500"}`}>
+                        <p className={`text-xs line-clamp-2 leading-relaxed ${isActive ? "text-slate-200" : "text-slate-500"}`}>
                           {thread.snippet || "(No content)"}
                         </p>
+                        {/* Category chip */}
+                        {category && (
+                          <div className="mt-1.5">
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                              category === "work" || category === "meeting" || category === "needs_reply"
+                                ? isActive ? "bg-purple-500/30 text-purple-200" : "bg-purple-50 text-purple-600 border border-purple-100"
+                                : category === "newsletter" || category === "social"
+                                  ? isActive ? "bg-blue-500/30 text-blue-200" : "bg-blue-50 text-blue-600 border border-blue-100"
+                                  : category === "personal" || category === "receipt"
+                                    ? isActive ? "bg-amber-500/30 text-amber-200" : "bg-amber-50 text-amber-600 border border-amber-100"
+                                    : isActive ? "bg-slate-500/30 text-slate-200" : "bg-slate-50 text-slate-500 border border-slate-100"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                category === "work" || category === "meeting" || category === "needs_reply" ? "bg-purple-500"
+                                : category === "newsletter" || category === "social" ? "bg-blue-500"
+                                : category === "personal" || category === "receipt" ? "bg-amber-500"
+                                : "bg-slate-400"
+                              }`} />
+                              {category.replace("_", " ")}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
