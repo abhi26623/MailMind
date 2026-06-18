@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "postbuild": "pnpm run db:push",
     "check": "next lint && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -18,7 +17,7 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
-    "start": "next start",
+    "start": "pnpm run db:push && next start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
