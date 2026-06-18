@@ -1154,7 +1154,7 @@ export default function InboxPage() {
         <div className="fixed inset-0 z-50 bg-forest-900/40 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-forest-900">
                 Reply to Thread #{activeThread.id.substring(0, 8)}
               </h3>
               <button

@@ -39,7 +39,7 @@ Only output the email body. Do NOT include Subject line or introductory chat (li
         : `User Prompt: ${input.prompt}`;
 
       const res = await openrouter.chat.completions.create({
-        model: AGENT_MODELS.fast,
+        model: AGENT_MODELS.geminiFlashLite.model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
