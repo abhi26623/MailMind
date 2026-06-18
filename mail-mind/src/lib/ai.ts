@@ -9,10 +9,16 @@ export const openrouter = new OpenAI({
   },
 })
 
-export type AgentModel = 'geminiLite'
+export type AgentModel = 'geminiFlash' | 'geminiFlashLite'
 
 export const AGENT_MODELS = {
-  geminiLite: {
+  /** Full Flash — used for the interactive agent chat (smarter reasoning, tool calling) */
+  geminiFlash: {
+    client: openrouter,
+    model: 'google/gemini-2.5-flash',
+  },
+  /** Flash Lite — used for background tasks: reply extraction, insights, webhooks (cheap) */
+  geminiFlashLite: {
     client: openrouter,
     model: 'google/gemini-2.5-flash-lite',
   },

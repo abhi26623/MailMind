@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Invalid or missing plugin parameter", { status: 400 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const redirectUri = `${appUrl}/api/connect/callback`;
 
   try {

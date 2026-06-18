@@ -3,6 +3,9 @@ import { corsair } from './corsair'
 import { AGENT_MODELS } from '@/lib/ai'
 import { z } from 'zod'
 import type OpenAI from 'openai'
+import { db } from '@/server/db'
+import { availabilityBlocks } from '@/server/db/schema'
+import { eq, gte, lte, and } from 'drizzle-orm'
 
 /**
  * Convert Corsair tool definitions (Zod schemas) into OpenAI function calling format.
@@ -90,6 +93,73 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   throw lastErr
 }
 
+
+/** Format raw API JSON result into a friendly human-readable markdown summary. */
+function formatExecutionResult(rawText: string, code: string): string {
+  try {
+    const data = JSON.parse(rawText) as Record<string, unknown>
+
+    // ── Calendar event created ──
+    if (data.kind === 'calendar#event') {
+      const summary = (data.summary as string) ?? 'Meeting'
+      const startDT = (data.start as { dateTime?: string } | undefined)?.dateTime ?? ''
+      const endDT   = (data.end   as { dateTime?: string } | undefined)?.dateTime ?? ''
+      const attendees = ((data.attendees as { email: string }[]) ?? [])
+        .map(a => a.email).filter(Boolean)
+      const link = (data.htmlLink as string) ?? ''
+
+      const fmt = (iso: string) => {
+        try {
+          return new Date(iso).toLocaleString('en-IN', {
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true,
+            timeZone: 'Asia/Kolkata',
+          })
+        } catch { return iso }
+      }
+      const fmtTime = (iso: string) => {
+        try {
+          return new Date(iso).toLocaleTimeString('en-IN', {
+            hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+          })
+        } catch { return '' }
+      }
+
+      const lines = [
+        `✅ **Meeting booked!**`,
+        ``,
+        `📅 **${summary}**`,
+        startDT ? `🕐 ${fmt(startDT)}${endDT ? ` – ${fmtTime(endDT)} IST` : ''}` : '',
+        attendees.length ? `👤 Invite sent to: ${attendees.join(', ')}` : '',
+        link ? `\n[View in Google Calendar](${link})` : '',
+      ].filter(l => l !== '')
+      return lines.join('\n')
+    }
+
+    // ── Gmail message sent ──
+    if ((data.kind as string)?.startsWith('gmail#')) {
+      const isDelete = code.includes('.trash(') || code.includes('.delete(')
+      if (isDelete) return '✅ **Email moved to trash.**'
+      return '✅ **Email sent!** The recipient should receive it shortly.\n\n> Check your Sent folder to confirm.'
+    }
+
+    // ── Calendar event deleted ──
+    if (rawText === '' || rawText === '{}') {
+      if (code.includes('.delete(') || code.includes('.trash(')) {
+        return '✅ **Done.** The event was deleted and attendees were notified.'
+      }
+    }
+  } catch {
+    // Not parseable JSON — return a minimal success message
+  }
+
+  // Fallback for unrecognised results
+  if (!rawText || rawText === '{}' || rawText === 'undefined') {
+    return '✅ Done!'
+  }
+  return `✅ Done!\n\n${rawText}`
+}
+
 /**
  * Run the MailMind AI agent with Corsair tools for Gmail + Calendar.
  * Model is hardcoded to Gemini 2.5 Flash-Lite via OpenRouter.
@@ -98,7 +168,7 @@ export async function runAgent(
   tenantId: string,
   messages: { role: 'user' | 'assistant'; content: string }[],
 ) {
-  const { client, model } = AGENT_MODELS.geminiLite
+  const { client, model } = AGENT_MODELS.geminiFlash
 
   // Build Corsair tools (Gmail + Calendar endpoints auto-discovered)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-type-assertion
@@ -113,6 +183,41 @@ export async function runAgent(
 
   console.log(`[runAgent] Tools for tenant ${tenantId}: ${openaiTools.length}`)
 
+  // Pre-fetch user's availability blocks for the next 2 weeks
+  let availabilitySummary = 'No availability blocks set yet. If the user asks to schedule a meeting, suggest they mark available times on the Calendar page first.'
+  try {
+    const today = new Date()
+    const twoWeeksLater = new Date(today)
+    twoWeeksLater.setDate(today.getDate() + 14)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    
+    const blocks = await db.query.availabilityBlocks.findMany({
+      where: and(
+        eq(availabilityBlocks.tenantId, tenantId),
+        gte(availabilityBlocks.date, formatDate(today)),
+        lte(availabilityBlocks.date, formatDate(twoWeeksLater)),
+      ),
+    })
+
+    if (blocks.length > 0) {
+      const sorted = [...blocks].sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1
+        return a.hourStart - b.hourStart
+      })
+      const lines = sorted.map(b => {
+        const d = new Date(b.date + 'T00:00:00+05:30')
+        const dayLabel = d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })
+        const startH = b.hourStart > 12 ? `${b.hourStart - 12} PM` : b.hourStart === 12 ? '12 PM' : `${b.hourStart} AM`
+        const endH = b.hourEnd > 12 ? `${b.hourEnd - 12} PM` : b.hourEnd === 12 ? '12 PM' : `${b.hourEnd} AM`
+        return `  - ${dayLabel}: ${startH} – ${endH}`
+      })
+      availabilitySummary = `User's marked availability (next 2 weeks):\n${lines.join('\n')}\n\nUse these blocks when suggesting meeting slots. Cross-reference with actual calendar events to find conflict-free times.`
+    }
+  } catch (err) {
+    console.warn('[runAgent] Failed to fetch availability:', err)
+  }
+
   const systemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
     role: 'system',
     content: `You are MailMind, an intelligent email and calendar assistant.
@@ -121,12 +226,40 @@ You have access to Corsair MCP tools that connect to the user's Gmail and Google
 
 IMPORTANT RULES:
 1. For READ-ONLY tasks (read emails, check calendar), execute immediately using the tools.
-2. For WRITE tasks (send email, create event, delete/archive), first summarize the planned action and ask the user to confirm BEFORE calling any tool. Example: "I'll create a calendar event for Thursday 6 PM with ak688487@gmail.com and email them an invite. Shall I proceed?"
-3. Only execute write tools after the user confirms.
-4. If the user asks to schedule but omits duration or subject, you MUST ask for them explicitly. Present the questions cleanly on separate lines. Example:
-   "What should be the duration of the meeting?
-   What is the subject of the meeting?"
-5. ALWAYS assume the timezone is the user's local timezone unless they specify otherwise. Do not ask them to confirm their timezone.
+2. For WRITE tasks (send email, create event, delete/archive), state your plan in ONE brief sentence (e.g. "Creating a 45-min Sync Up with ak688487@gmail.com on Saturday at 9 AM IST."), then IMMEDIATELY generate and execute the script. Do NOT ask "Shall I proceed?" — the UI will automatically show a confirmation draft card before anything is sent.
+3. Never add suggestions like "Yes, proceed" or "No, cancel" before a write action — the draft card handles that.
+4. If the user asks to schedule but duration or subject is missing, ask for BOTH in ONE message using this EXACT format so the UI renders chip buttons:
+
+   "Happy to schedule that! Just need two quick things:"
+   [DURATION: "30 min" | "45 min" | "1 hour" | "Other..."]
+   [SUBJECT: "Project discussion" | "Quick chat" | "Sync up" | "Other..."]
+
+   Do NOT ask for them separately. Do NOT use any other format. Use exactly these tag names.
+5. ALWAYS assume the timezone is IST (Asia/Kolkata, UTC+05:30). Do not ask the user to confirm their timezone.
+
+SCHEDULING NEGOTIATION WORKFLOW:
+When the user asks to "schedule a meeting with [person]" or "find a time with [person]":
+1. Check the user's availability blocks listed below.
+2. Use run_script to call googlecalendar.api.events.getMany for the requested date range to find busy times.
+3. Find slots that are INSIDE availability blocks AND have NO calendar conflicts.
+4. Present exactly 3 options as a numbered list.
+5. When the user approves sending, compose an email with these numbered options:
+   Subject: "Meeting request — [duration] minutes"
+   Body:
+   "Hi [name],
+   
+   I'd like to schedule a [duration]-minute meeting. I'm available at these times:
+   
+   1. [Day, Date · Time IST]
+   2. [Day, Date · Time IST]
+   3. [Day, Date · Time IST]
+   
+   Please reply with the number that works best for you.
+   
+   Best regards"
+6. After sending, tell the user: "Options sent to [email]! I'll notify you when they reply."
+
+${availabilitySummary}
 
 TECHNICAL:
 - The current tenant id is already provided by the server: "${tenantId}".
@@ -150,9 +283,9 @@ return await corsair.withTenant("${tenantId}").gmail.api.messages.list({
 });
 \`\`\`
 
-Create a calendar event:
+Create a calendar event AND send an email invite in one script:
 \`\`\`javascript
-return await corsair.withTenant("${tenantId}").googlecalendar.api.events.create({
+const event = await corsair.withTenant("${tenantId}").googlecalendar.api.events.create({
   calendarId: "primary",
   sendUpdates: "all",
   event: {
@@ -162,6 +295,24 @@ return await corsair.withTenant("${tenantId}").googlecalendar.api.events.create(
     attendees: [{ email: "user@example.com" }]
   }
 });
+
+const email = [
+  "To: user@example.com",
+  "Subject: Meeting Scheduled: Meeting",
+  "Content-Type: text/plain; charset=utf-8",
+  "MIME-Version: 1.0",
+  "",
+  "Hi user,",
+  "",
+  "I have scheduled our meeting. Please check your calendar for the invite details."
+].join("\\r\\n");
+
+await corsair.withTenant("${tenantId}").gmail.api.messages.send({
+  userId: "me",
+  raw: Buffer.from(email).toString("base64url")
+});
+
+return event;
 \`\`\`
 
 Send an email:
@@ -173,7 +324,7 @@ const email = [
   "MIME-Version: 1.0",
   "",
   "I look forward to our meeting."
-].join("\\r\\n");
+].join("\\\\r\\\\n");
 const raw = Buffer.from(email).toString("base64url");
 return await corsair.withTenant("${tenantId}").gmail.api.messages.send({
   userId: "me",
@@ -208,6 +359,7 @@ Today is ${new Date().toDateString()}.
 Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
   }
 
+
   const chatMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     systemMessage,
     ...messages.map(m => ({
@@ -217,6 +369,37 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
   ]
 
   const actions: string[] = []
+
+  // Check for confirmed execution bypass
+  if (messages.length > 0) {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.content.startsWith("CONFIRMED_EXECUTE:\n")) {
+      const code = lastMsg.content.replace("CONFIRMED_EXECUTE:\n", "");
+      const handler = handlerMap.get("run_script");
+      if (handler) {
+        try {
+          const result = await handler({ code });
+          const text = extractToolText(result);
+          const friendly = formatExecutionResult(text, code);
+          return {
+            content: friendly,
+            actions: ["run_script"],
+            suggestions: [],
+            requiresConfirmation: false,
+            pendingScript: null,
+          };
+        } catch (e) {
+          return {
+            content: `❌ Action failed: ${String(e)}`,
+            actions: ["run_script"],
+            suggestions: [],
+            requiresConfirmation: false,
+            pendingScript: null,
+          };
+        }
+      }
+    }
+  }
 
   // Multi-turn loop (max 3 turns to conserve API calls)
   for (let i = 0; i < 3; i++) {
@@ -251,6 +434,8 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
         content,
         actions: Array.from(new Set(actions)),
         suggestions,
+        requiresConfirmation: false,
+        pendingScript: null,
       }
     }
 
@@ -266,6 +451,24 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
         try {
           const parsedArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
           const args = sanitizeToolArgs(toolCall.function.name, parsedArgs)
+
+          if (toolCall.function.name === 'run_script') {
+            const code = (args.code as string) || (args.script as string) || (args.snippet as string) || "";
+            const isWriteAction = code.includes(".send(") || code.includes(".create(") || code.includes(".modify(") || code.includes(".trash(") || code.includes(".delete(");
+
+            if (isWriteAction) {
+              // Always show draft card — agent no longer asks "Shall I proceed?"
+              // The draft card is the single confirmation step.
+              return {
+                content: "",   // agent's plan sentence already in the previous message
+                actions: Array.from(new Set(actions)),
+                suggestions: [],
+                requiresConfirmation: true,
+                pendingScript: code,
+              };
+            }
+          }
+
           const result = await handler(args)
           const text = extractToolText(result)
           resultContent = text || JSON.stringify(result)
@@ -275,6 +478,8 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
               content: `I could not complete that action. ${resultContent}`,
               actions: Array.from(new Set(actions)),
               suggestions: [],
+              requiresConfirmation: false,
+              pendingScript: null,
             }
           }
         } catch (err) {
@@ -284,6 +489,8 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
             content: `I could not complete that action. ${String(err)}`,
             actions: Array.from(new Set(actions)),
             suggestions: [],
+            requiresConfirmation: false,
+            pendingScript: null,
           }
         }
       } else {
@@ -292,6 +499,8 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
           content: `I could not complete that action. Unknown tool: ${toolCall.function.name}`,
           actions: Array.from(new Set(actions)),
           suggestions: [],
+          requiresConfirmation: false,
+          pendingScript: null,
         }
       }
 
@@ -308,5 +517,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
     content: 'I reached the maximum number of steps. Please try a more specific request.',
     actions: Array.from(new Set(actions)),
     suggestions: [],
+    requiresConfirmation: false,
+    pendingScript: null,
   }
 }

@@ -1,7 +1,7 @@
-import { pgTable, text, jsonb, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, timestamp, boolean, varchar, integer, date } from 'drizzle-orm/pg-core';
 
 export const corsairIntegrations = pgTable('corsair_integrations', {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     name: text('name').notNull(),
@@ -10,7 +10,7 @@ export const corsairIntegrations = pgTable('corsair_integrations', {
 });
 
 export const corsairAccounts = pgTable('corsair_accounts', {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     tenantId: text('tenant_id').notNull(),
@@ -20,7 +20,7 @@ export const corsairAccounts = pgTable('corsair_accounts', {
 });
 
 export const corsairEntities = pgTable('corsair_entities', {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     accountId: text('account_id').notNull().references(() => corsairAccounts.id),
@@ -31,7 +31,7 @@ export const corsairEntities = pgTable('corsair_entities', {
 });
 
 export const corsairEvents = pgTable('corsair_events', {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     accountId: text('account_id').notNull().references(() => corsairAccounts.id),
@@ -43,7 +43,7 @@ export const corsairEvents = pgTable('corsair_events', {
 // --- Better Auth Required Tables ---
 
 export const user = pgTable("user", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified")
@@ -59,7 +59,7 @@ export const user = pgTable("user", {
 });
 
 export const session = pgTable("session", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   token: text("token").notNull().unique(),
   createdAt: timestamp("created_at").notNull(),
@@ -72,7 +72,7 @@ export const session = pgTable("session", {
 });
 
 export const account = pgTable("account", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
   userId: text("user_id")
@@ -90,7 +90,7 @@ export const account = pgTable("account", {
 });
 
 export const verification = pgTable("verification", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
@@ -100,4 +100,41 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at").$defaultFn(
     () => new Date(),
   ),
+});
+
+export const emailInsights = pgTable('email_insights', {
+    id: text('id').primaryKey().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    threadId: text('thread_id').notNull().unique(),
+    priority: text('priority').notNull(),
+    category: text('category').notNull(),
+    summary: text('summary').notNull(),
+    suggestedAction: text('suggested_action').notNull(),
+    reason: text('reason').notNull(),
+    extractedDateTime: text('extracted_date_time'),
+    extractedEmail: text('extracted_email'),
+});
+
+export const availabilityBlocks = pgTable('availability_blocks', {
+    id: text('id').primaryKey().notNull(),
+    tenantId: text('tenant_id').notNull(),
+    date: date('date').notNull(),
+    hourStart: integer('hour_start').notNull(),
+    hourEnd: integer('hour_end').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const schedulingNegotiations = pgTable('scheduling_negotiations', {
+    id: text('id').primaryKey().notNull(),
+    tenantId: text('tenant_id').notNull(),
+    threadId: text('thread_id'),
+    recipientEmail: text('recipient_email').notNull(),
+    recipientName: text('recipient_name'),
+    duration: integer('duration').notNull(),
+    proposedSlots: jsonb('proposed_slots').notNull().default([]),
+    chosenSlot: jsonb('chosen_slot'),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

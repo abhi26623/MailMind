@@ -15,6 +15,10 @@ export const agentRouter = createTRPCRouter({
         ctx.tenantId,
         input.messages,
       );
-      return result;
+      return {
+        ...result,
+        requiresConfirmation: result.requiresConfirmation ?? false,
+        pendingScript: result.pendingScript ?? null,
+      };
     }),
 });

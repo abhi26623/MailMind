@@ -56,39 +56,39 @@ export default function SettingsPage() {
   const isDisconnecting = disconnectMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
-      <div className="w-full max-w-xl bg-slate-900/60 border border-slate-800 backdrop-blur-xl rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+    <div className="min-h-screen bg-forest-950 text-cream-100 flex flex-col items-center justify-center p-6 font-sans">
+      <div className="w-full max-w-xl bg-forest-900/60 border border-forest-700 backdrop-blur-xl rounded-2xl p-8 shadow-2xl relative overflow-hidden">
         {/* Decorative Gradients */}
-        <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-wheat-500/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl" />
 
         <div className="relative z-10">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-wheat-500 to-amber-500 bg-clip-text text-transparent">
               Integrations Settings
             </h1>
             <Link
               href="/inbox"
               id="back-to-inbox"
-              className="text-xs font-semibold px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 rounded-lg transition-all"
+              className="text-xs font-semibold px-4 py-2 bg-forest-800 hover:bg-forest-700 border border-forest-700/50 rounded-lg transition-all"
             >
               Go to Inbox
             </Link>
           </div>
 
-          <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+          <p className="text-olive-400 text-sm mb-6 leading-relaxed">
             Manage your connection to Google Services. MailMind uses Corsair to securely sync your emails and calendar events.
           </p>
 
           {isLoading ? (
             <div className="space-y-4 py-6">
-              <div className="h-16 bg-slate-800/40 animate-pulse rounded-xl" />
-              <div className="h-16 bg-slate-800/40 animate-pulse rounded-xl" />
+              <div className="h-16 bg-forest-800/40 animate-pulse rounded-xl" />
+              <div className="h-16 bg-forest-800/40 animate-pulse rounded-xl" />
             </div>
           ) : (
             <div className="space-y-4">
               {/* Gmail Toggle */}
-              <div className="flex items-center justify-between p-5 bg-slate-800/30 border border-slate-800 rounded-xl hover:border-slate-700/50 transition-all">
+              <div className="flex items-center justify-between p-5 bg-forest-800/30 border border-forest-700 rounded-xl hover:border-forest-600/50 transition-all">
                 <div className="flex items-center space-x-4">
                   <div className="p-2.5 bg-red-500/10 text-red-400 rounded-lg">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,8 +96,8 @@ export default function SettingsPage() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-200">Gmail Integration</h3>
-                    <p className="text-xs text-slate-400">
+                    <h3 className="font-bold text-cream-200">Gmail Integration</h3>
+                    <p className="text-xs text-olive-400">
                       {isDisconnecting && gmailActive
                         ? "Disconnecting..."
                         : gmailActive
@@ -113,20 +113,18 @@ export default function SettingsPage() {
                   id="toggle-gmail"
                   onClick={handleToggleGmail}
                   disabled={isDisconnecting}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    gmailActive ? "bg-indigo-600" : "bg-slate-700"
+                  className={`px-4 py-2 font-semibold text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-forest-900 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    gmailActive
+                      ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 focus:ring-red-500"
+                      : "bg-wheat-500 text-forest-950 hover:bg-wheat-400 focus:ring-wheat-500"
                   }`}
                 >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      gmailActive ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
+                  {gmailActive ? "Disconnect" : "Connect"}
                 </button>
               </div>
 
               {/* Google Calendar Toggle */}
-              <div className="flex items-center justify-between p-5 bg-slate-800/30 border border-slate-800 rounded-xl hover:border-slate-700/50 transition-all">
+              <div className="flex items-center justify-between p-5 bg-forest-800/30 border border-forest-700 rounded-xl hover:border-forest-600/50 transition-all">
                 <div className="flex items-center space-x-4">
                   <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-lg">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,8 +132,8 @@ export default function SettingsPage() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-200">Google Calendar</h3>
-                    <p className="text-xs text-slate-400">
+                    <h3 className="font-bold text-cream-200">Google Calendar</h3>
+                    <p className="text-xs text-olive-400">
                       {isDisconnecting && calendarActive
                         ? "Disconnecting..."
                         : calendarActive
@@ -151,15 +149,13 @@ export default function SettingsPage() {
                   id="toggle-calendar"
                   onClick={handleToggleCalendar}
                   disabled={isDisconnecting}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    calendarActive ? "bg-indigo-600" : "bg-slate-700"
+                  className={`px-4 py-2 font-semibold text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-forest-900 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    calendarActive
+                      ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 focus:ring-red-500"
+                      : "bg-wheat-500 text-forest-950 hover:bg-wheat-400 focus:ring-wheat-500"
                   }`}
                 >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      calendarActive ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
+                  {calendarActive ? "Disconnect" : "Connect"}
                 </button>
               </div>
             </div>
@@ -181,7 +177,7 @@ export default function SettingsPage() {
             <button
               id="refresh-status"
               onClick={() => void refetch()}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-200 font-medium text-sm rounded-xl transition-all"
+              className="px-5 py-2.5 bg-forest-800 hover:bg-forest-700 border border-forest-700/50 text-cream-200 font-medium text-sm rounded-xl transition-all"
             >
               Refresh Status
             </button>

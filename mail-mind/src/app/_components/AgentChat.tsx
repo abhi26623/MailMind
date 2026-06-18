@@ -4,11 +4,20 @@ import { api } from '@/trpc/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+type ChipGroup = {
+  label: string        // e.g. "Duration" or "Subject"
+  key: string          // e.g. "duration" or "subject"
+  options: string[]    // e.g. ["30 min", "45 min", "1 hour", "Other..."]
+}
+
 type Message = {
   role: 'user' | 'assistant'
   content: string
   actions?: string[]
   suggestions?: string[]
+  chipGroups?: ChipGroup[]
+  requiresConfirmation?: boolean
+  pendingScript?: string | null
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -18,25 +27,294 @@ const ACTION_LABELS: Record<string, string> = {
   corsair_setup: 'Checking configuration',
 }
 
-const SUGGESTIONS = [
+const STARTER_SUGGESTIONS = [
   'Summarize my unread emails from today',
   'What meetings do I have this week?',
   'Schedule a meeting with xyz@gmail.com on Thursday at 6pm',
   'Draft a reply to my latest email',
 ]
 
+/**
+ * Parse [DURATION: "30 min" | "45 min" | "1 hour" | "Other..."]
+ * and [SUBJECT: "Project discussion" | "Quick chat" | "Sync up" | "Other..."]
+ * tags out of the agent response content.
+ */
+function parseChipGroups(content: string): { cleaned: string; chipGroups: ChipGroup[] } {
+  const chipGroups: ChipGroup[] = []
+  const tagRegex = /\[(DURATION|SUBJECT):\s*(.*?)\]/gi
+
+  const cleaned = content.replace(tagRegex, (_match, key: string, opts: string) => {
+    const options = opts
+      .split('|')
+      .map(o => o.trim().replace(/^["']|["']$/g, ''))
+      .filter(Boolean)
+    chipGroups.push({
+      label: key.charAt(0).toUpperCase() + key.slice(1).toLowerCase(),
+      key: key.toLowerCase(),
+      options,
+    })
+    return ''
+  }).trim()
+
+  return { cleaned, chipGroups }
+}
+
+/** Parse legacy [SUGGESTIONS: "A" | "B"] */
+function parseSuggestions(content: string): { cleaned: string; suggestions: string[] } {
+  const match = content.match(/\[SUGGESTIONS:\s*(.*?)\]/i)
+  if (!match) return { cleaned: content, suggestions: [] }
+  const cleaned = content.replace(match[0], '').trim()
+  const suggestions = match[1]!
+    .split('|')
+    .map(s => s.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean)
+  return { cleaned, suggestions }
+}
+
+// ─── Chip Group Row with "Other..." inline input ───────────────────────────
+function ChipGroupRow({
+  group,
+  onSelect,
+  disabled,
+}: {
+  group: ChipGroup
+  onSelect: (value: string) => void
+  disabled: boolean
+}) {
+  const [showInput, setShowInput] = useState(false)
+  const [customValue, setCustomValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showInput) inputRef.current?.focus()
+  }, [showInput])
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-olive-500 px-0.5">
+        {group.label}
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {group.options.map((opt, i) => {
+          const isOther = opt.toLowerCase().startsWith('other')
+          return isOther ? (
+            <button
+              key={i}
+              onClick={() => setShowInput(v => !v)}
+              disabled={disabled}
+              className="rounded-full border border-dashed border-wheat-500/50 bg-transparent px-4 py-2 text-xs font-semibold text-wheat-500/80 shadow-sm transition-all hover:border-wheat-500 hover:bg-wheat-100 hover:-translate-y-0.5 disabled:opacity-40"
+            >
+              ✏️ Other...
+            </button>
+          ) : (
+            <button
+              key={i}
+              onClick={() => onSelect(opt)}
+              disabled={disabled}
+              className="rounded-full border border-wheat-500/30 bg-wheat-100 px-4 py-2 text-xs font-semibold text-wheat-400 shadow-sm transition-all hover:bg-wheat-200 hover:border-wheat-500/50 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40"
+            >
+              {opt}
+            </button>
+          )
+        })}
+      </div>
+      {showInput && (
+        <div className="flex gap-2 mt-1 animate-slide-up">
+          <input
+            ref={inputRef}
+            value={customValue}
+            onChange={e => setCustomValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && customValue.trim()) {
+                onSelect(customValue.trim())
+                setCustomValue('')
+                setShowInput(false)
+              }
+              if (e.key === 'Escape') setShowInput(false)
+            }}
+            placeholder={`Custom ${group.label.toLowerCase()}…`}
+            className="flex-1 rounded-xl border border-wheat-500/40 bg-forest-800/80 px-3 py-2 text-xs text-cream-100 outline-none placeholder:text-olive-600 focus:border-wheat-500/70"
+          />
+          <button
+            onClick={() => {
+              if (customValue.trim()) {
+                onSelect(customValue.trim())
+                setCustomValue('')
+                setShowInput(false)
+              }
+            }}
+            className="rounded-xl bg-wheat-500 px-3 py-2 text-xs font-bold text-forest-950 hover:bg-wheat-400 transition-all"
+          >
+            OK
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Script parser ─────────────────────────────────────────────────────────
+type DraftInfo = {
+  type: 'calendar' | 'email' | 'mixed' | 'unknown'
+  meeting?: { summary: string; start: string; end: string; attendees: string[] }
+  email?: { to: string; subject: string; body: string }
+}
+
+function parseScriptForDraft(script: string): DraftInfo {
+  const isCalendar = script.includes('.googlecalendar.') && script.includes('.create(')
+  const isEmail = script.includes('.gmail.') && script.includes('.send(')
+
+  let meeting: DraftInfo['meeting'] | undefined
+  let email: DraftInfo['email'] | undefined
+
+  if (isCalendar) {
+    const summary = script.match(/summary:\s*["']([^"']+)["']/)?.[1] ?? 'Meeting'
+    const start = script.match(/start:\s*\{[^}]*dateTime:\s*["']([^"']+)["']/)?.[1] ?? ''
+    const end = script.match(/end:\s*\{[^}]*dateTime:\s*["']([^"']+)["']/)?.[1] ?? ''
+    const attendees = [...script.matchAll(/\{\s*email:\s*["']([^"']+)["']/g)].map(m => m[1] ?? '')
+    meeting = { summary, start, end, attendees }
+  }
+
+  if (isEmail) {
+    // Extract headers from the array literal: "To: ...", "Subject: ..."
+    const to = script.match(/["']To:\s*([^"']+)["']/)?.[1]?.trim() ?? ''
+    const subject = script.match(/["']Subject:\s*([^"']+)["']/)?.[1]?.trim() ?? ''
+    // Extract body: lines after the empty string separator in the array
+    const arrayContent = script.match(/\[([^\[\]]*)\]/)?.[1] ?? ''
+    const lines = [...arrayContent.matchAll(/["']([^"']*?)["']/g)].map(m => m[1] ?? '')
+    const emptyIdx = lines.findIndex(l => l.trim() === '')
+    const bodyLines = emptyIdx >= 0 ? lines.slice(emptyIdx + 1) : []
+    const body = bodyLines.join('\n').replace(/\\n/g, '\n').trim()
+    email = { to, subject, body }
+  }
+
+  const type = isCalendar && isEmail ? 'mixed' : isCalendar ? 'calendar' : isEmail ? 'email' : 'unknown'
+  return { type, meeting, email }
+}
+
+function formatIST(iso: string) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+      timeZone: 'Asia/Kolkata',
+    })
+  } catch { return iso }
+}
+
+// ─── Script Confirm Box (Draft Card) ───────────────────────────────────────
+function ScriptConfirmBox({
+  script,
+  onConfirm,
+  onCancel,
+  disabled,
+}: {
+  script: string
+  onConfirm: (code: string) => void
+  onCancel: () => void
+  disabled: boolean
+}) {
+  const draft = parseScriptForDraft(script)
+
+  return (
+    <div className="mt-2 w-full max-w-lg rounded-2xl border border-wheat-500/30 bg-forest-900/90 overflow-hidden shadow-lg shadow-wheat-500/5 animate-slide-up">
+
+      {/* ── Meeting card ── */}
+      {draft.meeting && (
+        <div className="px-4 pt-4 pb-3 border-b border-forest-700/50">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-wheat-500/15 text-base">📅</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm text-cream-100 truncate">{draft.meeting.summary}</p>
+              <p className="text-xs text-olive-400 mt-0.5">
+                {formatIST(draft.meeting.start)}
+                {draft.meeting.end && ` → ${new Date(draft.meeting.end).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}`}
+              </p>
+              {draft.meeting.attendees.filter(Boolean).map(a => (
+                <p key={a} className="text-xs text-wheat-500/80 mt-1 truncate">👤 {a}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Email card ── */}
+      {draft.email && (
+        <div className="px-4 pt-3 pb-3 border-b border-forest-700/50">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-olive-600/20 text-base">✉️</div>
+            <div className="flex-1 min-w-0 space-y-1">
+              {draft.email.to && (
+                <p className="text-xs text-olive-400"><span className="text-olive-600">To:</span> <span className="text-cream-200">{draft.email.to}</span></p>
+              )}
+              {draft.email.subject && (
+                <p className="text-xs text-olive-400"><span className="text-olive-600">Subject:</span> <span className="text-cream-200">{draft.email.subject}</span></p>
+              )}
+              {draft.email.body && (
+                <div className="mt-2 rounded-lg bg-forest-950/60 border border-forest-700/40 px-3 py-2">
+                  <p className="text-xs text-cream-300 whitespace-pre-wrap leading-relaxed">{draft.email.body}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Unknown / fallback ── */}
+      {draft.type === 'unknown' && (
+        <div className="px-4 py-3 border-b border-forest-700/50">
+          <p className="text-xs text-olive-400">⚙️ Action ready — review and confirm below.</p>
+        </div>
+      )}
+
+      {/* ── Action buttons ── */}
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          onClick={() => onConfirm(script)}
+          disabled={disabled}
+          className="flex items-center gap-1.5 rounded-xl bg-wheat-500 px-5 py-2.5 text-xs font-bold text-forest-950 shadow-md shadow-wheat-500/20 transition-all hover:bg-wheat-400 hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+          {draft.type === 'email' || draft.type === 'mixed' ? 'Send' : 'Book it'}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={disabled}
+          className="rounded-xl border border-forest-700 bg-forest-800 px-4 py-2.5 text-xs font-semibold text-cream-200 transition-all hover:bg-forest-700 disabled:opacity-40"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function AgentChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  // Tracks selected chip values per message index: { messageIdx: { duration: "45 min", subject: "..." } }
+  const [chipSelections, setChipSelections] = useState<Record<number, Record<string, string>>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const chat = api.agent.chat.useMutation({
     onSuccess: (data) => {
+      // Parse chip groups and suggestions from the response
+      let content = data.content
+      const { cleaned: c1, chipGroups } = parseChipGroups(content)
+      const { cleaned: c2, suggestions } = parseSuggestions(c1)
+      content = c2
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.content,
+        content,
         actions: data.actions,
-        suggestions: data.suggestions,
+        suggestions: data.suggestions?.length ? data.suggestions : suggestions,
+        chipGroups: chipGroups.length ? chipGroups : undefined,
+        requiresConfirmation: data.requiresConfirmation,
+        pendingScript: data.pendingScript,
       }])
     },
     onError: (err) => {
@@ -53,74 +331,85 @@ export function AgentChat() {
 
   const send = () => {
     if (!input.trim() || chat.isPending) return
-
-    const newMessages: Message[] = [
-      ...messages,
-      { role: 'user', content: input },
-    ]
-
+    const newMessages: Message[] = [...messages, { role: 'user', content: input }]
     setMessages(newMessages)
     setInput('')
-    chat.mutate({
-      messages: newMessages.map(m => ({
-        role: m.role,
-        content: m.content,
-      })),
-    })
+    chat.mutate({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) })
   }
 
-  const sendSuggestion = (suggestion: string) => {
+  const sendSuggestion = (text: string) => {
     if (chat.isPending) return
-    const visibleInput = suggestion.trim()
-    const newMessages: Message[] = [
-      ...messages,
-      { role: 'user', content: visibleInput },
-    ]
+    const newMessages: Message[] = [...messages, { role: 'user', content: text }]
+    setMessages(newMessages)
+    chat.mutate({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) })
+  }
 
+  /**
+   * Handle a chip selection from a chip group.
+   * Collects all group values for that message; when all groups have a selection,
+   * sends a combined message automatically.
+   */
+  const handleChipSelect = (msgIdx: number, msg: Message, groupKey: string, value: string) => {
+    if (chat.isPending) return
+
+    const groups = msg.chipGroups ?? []
+    const prevSelections = chipSelections[msgIdx] ?? {}
+    const updated = { ...prevSelections, [groupKey]: value }
+    setChipSelections(prev => ({ ...prev, [msgIdx]: updated }))
+
+    // Check if all groups now have a selection
+    const allSelected = groups.every(g => updated[g.key] !== undefined)
+    if (allSelected) {
+      // Build combined message e.g. "45 min, Project discussion"
+      const combined = groups.map(g => updated[g.key]!).join(', ')
+      sendSuggestion(combined)
+      // Clear selections for this message
+      setChipSelections(prev => { const next = { ...prev }; delete next[msgIdx]; return next })
+    }
+  }
+
+  const handleConfirmAction = (script: string) => {
+    if (chat.isPending) return
+    const newMessages: Message[] = [...messages, { role: 'user', content: 'Confirmed. Please execute.' }]
     setMessages(newMessages)
     chat.mutate({
       messages: [
-        ...messages.map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
-        {
-          role: 'user' as const,
-          content: visibleInput,
-        },
-      ].map(m => ({
-        role: m.role,
-        content: m.content,
-      })),
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: `CONFIRMED_EXECUTE:\n${script}` },
+      ],
     })
   }
 
+  const handleCancelAction = () => {
+    setMessages(prev => [...prev, { role: 'user', content: 'Action cancelled.' }])
+  }
+
   return (
-    <div className="flex h-full flex-col bg-slate-950 font-sans text-white">
+    <div className="flex h-full flex-col bg-forest-950 font-sans text-cream-100">
       <div className="flex-1 space-y-5 overflow-y-auto p-6">
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center space-y-8">
             <div className="space-y-3 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-2xl font-bold text-white shadow-lg shadow-indigo-500/20">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-wheat-500 to-amber-500 text-2xl font-bold text-forest-950 shadow-lg shadow-wheat-500/20">
                 M
               </div>
-              <h2 className="bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
+              <h2 className="bg-gradient-to-r from-cream-100 to-cream-200 bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
                 MailMind Agent
               </h2>
-              <p className="max-w-sm text-xs text-slate-500">
+              <p className="max-w-sm text-xs text-olive-500">
                 I can read your emails, schedule meetings, send replies, and manage your calendar. Just ask.
               </p>
             </div>
 
             <div className="w-full max-w-lg space-y-2">
-              <p className="px-1 text-[10px] font-bold uppercase tracking-widest text-slate-600">
+              <p className="px-1 text-[10px] font-bold uppercase tracking-widest text-olive-600">
                 Try asking
               </p>
-              {SUGGESTIONS.map((prompt) => (
+              {STARTER_SUGGESTIONS.map((prompt) => (
                 <button
                   key={prompt}
                   onClick={() => setInput(prompt)}
-                  className="block w-full rounded-xl border border-slate-800/60 bg-slate-900/30 px-4 py-3 text-left text-sm text-slate-400 transition-all hover:border-slate-700 hover:bg-slate-900/60 hover:text-slate-200"
+                  className="block w-full rounded-xl border border-forest-700/60 bg-forest-900/30 px-4 py-3 text-left text-sm text-olive-400 transition-all hover:border-forest-600 hover:bg-forest-900/60 hover:text-cream-100"
                 >
                   {prompt}
                 </button>
@@ -129,75 +418,123 @@ export function AgentChat() {
           </div>
         )}
 
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}
-          >
+        {messages.map((m, i) => {
+          const mySelections = chipSelections[i] ?? {}
+          const pendingGroups = (m.chipGroups ?? []).filter(g => mySelections[g.key] === undefined)
+          const isLastAssistant = m.role === 'assistant' && i === messages.length - 1
+
+          return (
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                m.role === 'user'
-                  ? 'rounded-br-md bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                  : 'rounded-bl-md border border-slate-700/50 bg-slate-800/80 text-slate-100'
-              }`}
+              key={i}
+              className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}
             >
-              {m.role === 'user' ? (
-                <p className="whitespace-pre-wrap">{m.content}</p>
-              ) : (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      a: ({ ...props }) => <a {...props} className="text-indigo-400 hover:underline" target="_blank" rel="noopener noreferrer" />,
-                      p: ({ ...props }) => <p {...props} className="mb-2 last:mb-0" />,
-                      ul: ({ ...props }) => <ul {...props} className="list-disc pl-4 mb-2" />,
-                      ol: ({ ...props }) => <ol {...props} className="list-decimal pl-4 mb-2" />,
-                    }}
-                  >
-                    {m.content}
-                  </ReactMarkdown>
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  m.role === 'user'
+                    ? 'rounded-br-md bg-wheat-500 text-forest-950 shadow-md shadow-wheat-500/10'
+                    : 'rounded-bl-md border border-forest-700/50 bg-forest-700/80 text-cream-100'
+                }`}
+              >
+                {m.role === 'user' ? (
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                ) : (
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        a: ({ ...props }) => <a {...props} className="text-wheat-500 hover:underline" target="_blank" rel="noopener noreferrer" />,
+                        p: ({ ...props }) => <p {...props} className="mb-2 last:mb-0" />,
+                        ul: ({ ...props }) => <ul {...props} className="list-disc pl-4 mb-2" />,
+                        ol: ({ ...props }) => <ol {...props} className="list-decimal pl-4 mb-2" />,
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Chip groups (Duration / Subject / etc.) ── */}
+              {m.chipGroups && m.chipGroups.length > 0 && isLastAssistant && (
+                <div className="flex flex-col gap-3 mt-2 w-full max-w-[85%]">
+                  {m.chipGroups.map(group => {
+                    const isSelected = mySelections[group.key] !== undefined
+                    return isSelected ? (
+                      // Show selected badge
+                      <div key={group.key} className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-olive-500">{group.label}:</span>
+                        <span className="rounded-full bg-wheat-500 px-3 py-1 text-xs font-bold text-forest-950">
+                          ✓ {mySelections[group.key]}
+                        </span>
+                      </div>
+                    ) : (
+                      <ChipGroupRow
+                        key={group.key}
+                        group={group}
+                        onSelect={(val) => handleChipSelect(i, m, group.key, val)}
+                        disabled={chat.isPending}
+                      />
+                    )
+                  })}
+                  {pendingGroups.length > 0 && (
+                    <p className="text-[10px] text-olive-600 italic">
+                      Select {pendingGroups.map(g => g.label.toLowerCase()).join(' and ')} above…
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Legacy flat suggestions ── */}
+              {m.suggestions && m.suggestions.length > 0 && !m.chipGroups?.length && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {m.suggestions.map((suggestion, j) => (
+                    <button
+                      key={j}
+                      onClick={() => sendSuggestion(suggestion)}
+                      disabled={chat.isPending || m.requiresConfirmation}
+                      className="rounded-full border border-wheat-500/30 bg-wheat-100 px-4 py-2 text-xs font-semibold text-wheat-400 shadow-sm transition-all hover:bg-wheat-200 hover:border-wheat-500/50 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:hover:translate-y-0"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Confirm & Execute with script viewer / editor ── */}
+              {m.requiresConfirmation && m.pendingScript && i === messages.length - 1 && (
+                <ScriptConfirmBox
+                  script={m.pendingScript}
+                  onConfirm={handleConfirmAction}
+                  onCancel={handleCancelAction}
+                  disabled={chat.isPending}
+                />
+              )}
+
+              {/* ── Action badges ── */}
+              {m.actions && m.actions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-1">
+                  {m.actions.map((action, j) => (
+                    <span
+                      key={j}
+                      className="rounded-full border border-forest-700/50 bg-forest-900/60 px-2.5 py-1 text-[10px] font-semibold text-olive-400"
+                    >
+                      {ACTION_LABELS[action] ?? action}
+                    </span>
+                  ))}
                 </div>
               )}
             </div>
-
-            {m.suggestions && m.suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {m.suggestions.map((suggestion, j) => (
-                  <button
-                    key={j}
-                    onClick={() => sendSuggestion(suggestion)}
-                    disabled={chat.isPending}
-                    className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-300 shadow-sm transition-all hover:bg-indigo-500/20 hover:border-indigo-500/50 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:hover:translate-y-0"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {m.actions && m.actions.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-1">
-                {m.actions.map((action, j) => (
-                  <span
-                    key={j}
-                    className="rounded-full border border-slate-700/50 bg-slate-900/60 px-2.5 py-1 text-[10px] font-semibold text-slate-400"
-                  >
-                    {ACTION_LABELS[action] ?? action}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
 
         {chat.isPending && (
           <div className="flex items-start gap-2">
-            <div className="rounded-2xl rounded-bl-md border border-slate-700/50 bg-slate-800/80 px-4 py-3 text-sm text-slate-400">
+            <div className="rounded-2xl rounded-bl-md border border-forest-700/50 bg-forest-700/80 px-4 py-3 text-sm text-olive-400">
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '0ms' }} />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '150ms' }} />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '300ms' }} />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-wheat-500" style={{ animationDelay: '0ms' }} />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-wheat-500" style={{ animationDelay: '150ms' }} />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-wheat-500" style={{ animationDelay: '300ms' }} />
                 </div>
                 <span className="text-xs">Thinking...</span>
               </div>
@@ -208,11 +545,11 @@ export function AgentChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-slate-800/80 bg-slate-900/40 p-4 backdrop-blur-md">
+      <div className="border-t border-forest-700/80 bg-forest-900/40 p-4 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl gap-2">
           <input
             id="agent-chat-input"
-            className="flex-1 rounded-xl border border-slate-700/50 bg-slate-800/60 px-4 py-3 text-sm outline-none transition-all placeholder:text-slate-600 focus:border-indigo-500/50"
+            className="flex-1 rounded-xl border border-forest-700/50 bg-forest-800/60 px-4 py-3 text-sm text-cream-100 outline-none transition-all placeholder:text-cream-300 focus:border-wheat-500/50"
             placeholder="Schedule a meeting, summarize emails..."
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -223,7 +560,7 @@ export function AgentChat() {
             id="agent-send-btn"
             onClick={send}
             disabled={chat.isPending || !input.trim()}
-            className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/10 transition-all hover:bg-indigo-500 disabled:opacity-30 disabled:hover:bg-indigo-600"
+            className="rounded-xl bg-wheat-500 px-4 py-3 text-sm font-bold text-forest-950 shadow-md shadow-wheat-500/10 transition-all hover:bg-wheat-400 disabled:opacity-30 disabled:hover:bg-wheat-500"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />

@@ -1,5 +1,6 @@
 
 "use client";
+"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
@@ -7,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import { authClient } from "@/server/better-auth/client";
+import { CommandPalette } from "@/app/_components/CommandPalette";
+import { PeekCalendarModal } from "@/app/_components/PeekCalendarModal";
 
 interface Thread {
   id: string;
@@ -161,6 +164,13 @@ export default function InboxPage() {
   const [activeThread, setActiveThread] = useState<Thread | null>(null);
   const [showCheatsheet, setShowCheatsheet] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+
+  const threadIds = useMemo(() => threads.map(t => t.id), [threads]);
+  const { data: insights } = api.insights.getInsightsBatch.useQuery(
+    { threadIds },
+    { enabled: threadIds.length > 0 }
+  );
 
   // Fetch full details of the currently active thread
   const { data: threadDetails, isLoading: isLoadingDetails } = api.email.threadDetails.useQuery(
@@ -190,6 +200,46 @@ export default function InboxPage() {
 
   // Helper: Get active / selected thread
   const selectedThread = threads[selectedIndex] ?? null;
+  const activeInsight = insights?.find((i: { threadId: string }) => i.threadId === activeThread?.id);
+
+  const scheduleMutation = api.workflow.scheduleFromEmail.useMutation({
+    onSuccess: () => {
+      showToast("Meeting scheduled & reply sent", "success");
+      void refetch();
+      if (calendarConnected) void refetchCalendar();
+    },
+    onError: (err) => {
+      showToast(`Failed to schedule: ${err.message}`, "error");
+    }
+  });
+
+  const [showPeekModal, setShowPeekModal] = useState(false);
+
+  const handleOpenPeekModal = () => {
+    if (!activeThread || !activeInsight) return;
+    setShowPeekModal(true);
+  };
+
+  const handleConfirmPeekSchedule = (start: string, end: string) => {
+    setShowPeekModal(false);
+    if (!activeThread || !activeInsight) return;
+    
+    const attendeeEmail = activeInsight.extractedEmail || "guest@example.com";
+
+    scheduleMutation.mutate({
+      threadId: activeThread.id,
+      attendeeEmail,
+      summary: "Meeting: " + activeInsight.summary,
+      start,
+      end,
+      replyBody: "I've scheduled a 30-minute meeting based on your request. See the calendar invite for details."
+    });
+  };
+
+  // Keep old handler for the Command Palette
+  const handleScheduleFromInsight = () => {
+    handleOpenPeekModal();
+  };
 
   // Active Thread update on selection or load
   useEffect(() => {
@@ -308,15 +358,20 @@ export default function InboxPage() {
     "gc": () => router.push("/calendar"),
   });
 
-  // Today's Calendar events memoization
-  const todaysEvents = useMemo(() => {
+  // Up Next events memoization (future events)
+  const upcomingEvents = useMemo(() => {
     if (!calendarData?.items) return [];
-    const todayStr = new Date().toDateString();
-    return calendarData.items.filter((event: any) => {
-      const start = event.start?.dateTime || event.start?.date;
-      if (!start) return false;
-      return new Date(start).toDateString() === todayStr;
-    });
+    const now = new Date();
+    return [...calendarData.items]
+      .filter((event: any) => {
+        const start = new Date(event.start?.dateTime || event.start?.date || 0);
+        return start >= now;
+      })
+      .sort((a: any, b: any) => {
+        const aStart = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
+        const bStart = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
+        return aStart - bStart;
+      });
   }, [calendarData]);
 
   // Gmail / Calendar connection redirect handlers
@@ -353,26 +408,26 @@ export default function InboxPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
+    <div className="min-h-screen bg-forest-950 text-cream-100 flex flex-col font-sans relative">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
-            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+            ? "bg-success-light border-emerald-500/20 text-success"
             : toast.type === "error"
-              ? "bg-rose-500/10 border-rose-500/20 text-rose-400"
-              : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+              ? "bg-danger-light border-rose-500/20 text-danger"
+              : "bg-wheat-100 border-wheat-500/20 text-wheat-500"
           }`}>
           <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
 
       {/* Top Header */}
-      <header className="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-40 px-8 py-4 flex justify-between items-center">
+      <header className="border-b border-forest-700/80 bg-forest-800/40 backdrop-blur-md sticky top-0 z-40 px-8 py-4 flex justify-between items-center">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
+          <div className="w-9 h-9 bg-gradient-to-tr from-wheat-500 to-amber-500 rounded-xl flex items-center justify-center font-bold text-cream-100 shadow-lg shadow-wheat-500/20">
             M
           </div>
-          <span className="font-extrabold tracking-tight text-xl bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">
+          <span className="font-extrabold tracking-tight text-xl bg-gradient-to-r from-cream-100 to-cream-200 bg-clip-text text-transparent">
             MailMind
           </span>
         </div>
@@ -383,11 +438,11 @@ export default function InboxPage() {
             <button
               onClick={handleToggleGmail}
               className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${gmailConnected
-                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default"
-                  : "bg-slate-800 hover:bg-slate-700 border-slate-700/50 text-slate-300 hover:text-slate-100"
+                  ? "bg-success-light border-emerald-500/20 text-success cursor-default"
+                  : "bg-forest-700 hover:bg-forest-600 border-forest-600/50 text-cream-200 hover:text-cream-100"
                 }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? "bg-emerald-400" : "bg-slate-500 animate-pulse"}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? "bg-emerald-400" : "bg-olive-500 animate-pulse"}`} />
               <span>Gmail</span>
             </button>
 
@@ -407,7 +462,7 @@ export default function InboxPage() {
           <Link
             href="/agent"
             id="agent-link"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 border border-indigo-500/30 rounded-xl transition-all text-white text-xs font-bold shadow-md shadow-indigo-600/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 border border-wheat-500/30 rounded-xl transition-all text-cream-100 text-xs font-bold shadow-md shadow-wheat-500/10"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -418,7 +473,7 @@ export default function InboxPage() {
           <Link
             href="/settings"
             id="settings-link"
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 rounded-xl transition-all text-slate-300 hover:text-slate-100"
+            className="p-2.5 bg-forest-700 hover:bg-forest-600 border border-forest-600/50 rounded-xl transition-all text-cream-200 hover:text-cream-100"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -430,7 +485,7 @@ export default function InboxPage() {
               void refetch();
               if (calendarConnected) void refetchCalendar();
             }}
-            className="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 rounded-xl transition-all shadow-md shadow-indigo-600/10"
+            className="px-4 py-2 text-xs font-semibold bg-wheat-500 hover:bg-wheat-400 border border-wheat-500/30 rounded-xl transition-all shadow-md shadow-wheat-500/10"
           >
             Refresh
           </button>
@@ -440,12 +495,12 @@ export default function InboxPage() {
       {/* Main Workspace Layout */}
       <div className="flex-1 grid grid-cols-12 overflow-hidden">
         {/* Navigation Sidebar & Hotkeys helper */}
-        <div className="col-span-1 border-r border-slate-800/80 bg-slate-900/20 p-4 flex flex-col justify-between items-center text-slate-500">
+        <div className="col-span-1 border-r border-forest-700/80 bg-forest-900/20 p-4 flex flex-col justify-between items-center text-olive-500">
           <div className="flex flex-col space-y-6 w-full items-center">
             <button
               onClick={() => setIsComposeOpen(true)}
               title="Compose Email (C)"
-              className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+              className="p-3 bg-wheat-500 hover:bg-wheat-400 text-cream-100 rounded-xl transition-all shadow-lg shadow-wheat-500/20"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -455,15 +510,15 @@ export default function InboxPage() {
             <button
               onClick={() => setShowCheatsheet(true)}
               title="Keyboard Cheatsheet (?)"
-              className="p-3 bg-slate-800/40 hover:bg-slate-800 text-slate-400 rounded-xl transition-all"
+              className="p-3 bg-forest-700/40 hover:bg-forest-700 text-olive-400 rounded-xl transition-all"
             >
               <span className="font-bold text-xs">?</span>
             </button>
           </div>
 
-          <div className="flex flex-col space-y-4 w-full items-center text-[10px] text-slate-600 border-t border-slate-800/60 pt-4">
+          <div className="flex flex-col space-y-4 w-full items-center text-[10px] text-olive-500 border-t border-forest-700/60 pt-4">
             <div className="text-center">
-              <kbd className="block bg-slate-800 text-slate-300 px-1 py-0.5 rounded font-mono border border-slate-700">J</kbd>
+              <kbd className="block bg-forest-700 text-cream-200 px-1 py-0.5 rounded font-mono border border-forest-600">J</kbd>
               <span>next</span>
             </div>
             <div className="text-center">
@@ -474,10 +529,10 @@ export default function InboxPage() {
         </div>
 
         {/* Thread List */}
-        <div className="col-span-3 border-r border-slate-800/80 overflow-y-auto max-h-[calc(100vh-73px)]">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h2 className="font-bold text-sm text-slate-300">All Threads</h2>
-            <span className="text-xs bg-slate-800/60 px-2 py-0.5 rounded text-slate-400 border border-slate-700/50">
+        <div className="col-span-3 border-r border-forest-700/80 overflow-y-auto max-h-[calc(100vh-73px)]">
+          <div className="p-4 border-b border-forest-700 flex justify-between items-center">
+            <h2 className="font-bold text-sm text-cream-200">All Threads</h2>
+            <span className="text-xs bg-forest-700/40 px-2 py-0.5 rounded text-olive-400 border border-forest-600/50">
               {threads.length} total
             </span>
           </div>
@@ -485,16 +540,16 @@ export default function InboxPage() {
           {isLoading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-24 bg-slate-900/50 animate-pulse rounded-xl" />
+                <div key={i} className="h-24 bg-forest-900/60 animate-pulse rounded-xl" />
               ))}
             </div>
           ) : error || (data as any)?._error ? (
-            <div className="p-8 text-center text-slate-400">
+            <div className="p-8 text-center text-olive-400">
               <p className="text-red-400 font-medium mb-3">Failed to load threads</p>
               {((data as any)?._error || error?.message || "").includes("auth-missing") ? (
                 <a
                   href="/api/connect?plugin=gmail"
-                  className="inline-block px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all"
+                  className="inline-block px-5 py-2 text-xs font-semibold bg-wheat-500 hover:bg-wheat-400 text-cream-100 rounded-xl transition-all"
                 >
                   Connect Gmail
                 </a>
@@ -503,7 +558,7 @@ export default function InboxPage() {
               )}
             </div>
           ) : threads.length === 0 ? (
-            <div className="p-8 text-center text-slate-400">
+            <div className="p-8 text-center text-olive-400">
               <p className="font-medium text-xs">Your inbox is clean</p>
             </div>
           ) : (
@@ -518,23 +573,35 @@ export default function InboxPage() {
                     id={`thread-${thread.id}`}
                     onClick={() => handleSelectThread(thread, index)}
                     className={`p-3.5 rounded-xl cursor-pointer transition-all border ${isActive
-                        ? "bg-indigo-600/10 border-indigo-500/50 shadow-md shadow-indigo-500/5"
+                        ? "bg-wheat-100 border-wheat-500/50 shadow-md shadow-wheat-500/5"
                         : isSelected
-                          ? "bg-slate-900/90 border-slate-700"
-                          : "bg-slate-900/30 border-slate-800/40 hover:bg-slate-900/50 hover:border-slate-800"
+                          ? "bg-forest-900/60 border-forest-600"
+                          : "bg-forest-900/20 border-forest-700/40 hover:bg-forest-900/60 hover:border-forest-700"
                       }`}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <span className="font-bold text-[10px] bg-slate-800 text-indigo-300 px-2 py-0.5 rounded border border-slate-700/60">
+                      <span className="font-bold text-[10px] bg-forest-700 text-wheat-400 px-2 py-0.5 rounded border border-forest-600/60">
                         {thread.id.substring(0, 8)}
                       </span>
-                      {isStarred && (
-                        <svg className="w-3.5 h-3.5 text-amber-400 fill-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      )}
+                      <div className="flex space-x-1 items-center">
+                        {insights?.find((i: any) => i.threadId === thread.id)?.priority === "urgent" && (
+                          <span className="text-[9px] bg-danger-light text-danger px-1.5 py-0.5 rounded font-bold uppercase tracking-widest border border-rose-500/30">
+                            Urgent
+                          </span>
+                        )}
+                        {insights?.find((i: any) => i.threadId === thread.id)?.priority === "high" && (
+                          <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest border border-amber-500/30">
+                            High
+                          </span>
+                        )}
+                        {isStarred && (
+                          <svg className="w-3.5 h-3.5 text-amber-400 fill-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-cream-200 line-clamp-2 leading-relaxed">
                       {thread.snippet || "(No content)"}
                     </p>
                   </div>
@@ -545,15 +612,15 @@ export default function InboxPage() {
         </div>
 
         {/* Thread Detail / Main Workspace View */}
-        <div className="col-span-5 bg-slate-900/10 overflow-y-auto max-h-[calc(100vh-73px)] p-6">
+        <div className="col-span-5 bg-forest-900/20 overflow-y-auto max-h-[calc(100vh-73px)] p-6">
           {activeThread ? (
             <div className="space-y-6">
               {/* Toolbar */}
-              <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800 px-4 py-2 rounded-xl backdrop-blur-md">
+              <div className="flex items-center justify-between bg-forest-900/60 border border-forest-700 px-4 py-2 rounded-xl backdrop-blur-md">
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleArchive(activeThread)}
-                    className="p-2 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg transition-all"
+                    className="p-2 hover:bg-forest-700 text-olive-400 hover:text-cream-100 rounded-lg transition-all"
                     title="Archive (E)"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -562,7 +629,7 @@ export default function InboxPage() {
                   </button>
                   <button
                     onClick={() => handleDelete(activeThread)}
-                    className="p-2 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-all"
+                    className="p-2 hover:bg-forest-700 text-olive-400 hover:text-rose-400 rounded-lg transition-all"
                     title="Delete (#)"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -571,7 +638,7 @@ export default function InboxPage() {
                   </button>
                   <button
                     onClick={() => handleToggleStar(activeThread)}
-                    className={`p-2 hover:bg-slate-800 rounded-lg transition-all ${isThreadStarred(activeThread) ? "text-amber-400" : "text-slate-400 hover:text-amber-300"}`}
+                    className={`p-2 hover:bg-forest-700 rounded-lg transition-all ${isThreadStarred(activeThread) ? "text-amber-400" : "text-olive-400 hover:text-amber-300"}`}
                     title="Toggle Star (S)"
                   >
                     <svg className="w-4 h-4" fill={isThreadStarred(activeThread) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
@@ -583,7 +650,7 @@ export default function InboxPage() {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handleOpenReply}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition-all border border-slate-700/50 flex items-center space-x-1"
+                    className="px-3 py-1.5 bg-forest-700 hover:bg-forest-600 text-xs font-semibold rounded-lg transition-all border border-forest-600/50 flex items-center space-x-1"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -594,20 +661,20 @@ export default function InboxPage() {
               </div>
 
               {/* Thread Content */}
-              <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl shadow-xl backdrop-blur-md">
-                <div className="flex justify-between items-center mb-6 pb-6 border-b border-slate-800">
+              <div className="bg-forest-900/60 border border-forest-700 p-6 rounded-2xl shadow-xl backdrop-blur-md">
+                <div className="flex justify-between items-center mb-6 pb-6 border-b border-forest-700">
                   <div>
-                    <h2 className="text-md font-bold text-slate-100 mb-1">Thread #{activeThread.id}</h2>
-                    <p className="text-[10px] text-slate-400">History ID: {activeThread.historyId}</p>
+                    <h2 className="text-md font-bold text-cream-100 mb-1">Thread #{activeThread.id}</h2>
+                    <p className="text-[10px] text-olive-400">History ID: {activeThread.historyId}</p>
                   </div>
-                  <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] rounded-full border border-emerald-500/20 font-bold uppercase tracking-wider">
+                  <span className="px-2.5 py-0.5 bg-success-light text-success text-[10px] rounded-full border border-emerald-500/20 font-bold uppercase tracking-wider">
                     Synced Gmail
                   </span>
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Initial Snippet</h3>
-                  <div className="bg-slate-950/60 border border-slate-800/60 p-4 rounded-xl text-slate-300 text-xs leading-relaxed whitespace-pre-wrap">
+                  <h3 className="text-[10px] font-bold text-olive-400 uppercase tracking-widest">Initial Snippet</h3>
+                  <div className="bg-forest-950/50 border border-forest-700/60 p-4 rounded-xl text-cream-200 text-xs leading-relaxed whitespace-pre-wrap">
                     {activeThread.snippet || "(No content)"}
                   </div>
                 </div>
@@ -616,16 +683,16 @@ export default function InboxPage() {
               {/* Messages details */}
               {isLoadingDetails ? (
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 animate-pulse">
+                  <h3 className="text-xs font-bold text-olive-400 uppercase tracking-widest px-2 animate-pulse">
                     Loading Messages...
                   </h3>
-                  <div className="bg-slate-900/40 border border-slate-800/80 p-8 rounded-xl flex justify-center">
-                    <span className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></span>
+                  <div className="bg-forest-800/40 border border-forest-700/80 p-8 rounded-xl flex justify-center">
+                    <span className="w-6 h-6 border-2 border-wheat-500 border-t-transparent rounded-full animate-spin"></span>
                   </div>
                 </div>
               ) : threadDetails?.messages && threadDetails.messages.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">
+                  <h3 className="text-xs font-bold text-olive-400 uppercase tracking-widest px-2">
                     Messages ({threadDetails.messages.length})
                   </h3>
                   <div className="space-y-3">
@@ -634,18 +701,18 @@ export default function InboxPage() {
                       const isHtml = bodyText.includes("<html") || bodyText.includes("<body") || bodyText.includes("<div");
 
                       return (
-                        <div key={message.id} className="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl space-y-3">
-                          <div className="flex justify-between items-center text-[10px] text-slate-500 border-b border-slate-800/40 pb-2">
+                        <div key={message.id} className="bg-forest-800/40 border border-forest-700/80 p-4 rounded-xl space-y-3">
+                          <div className="flex justify-between items-center text-[10px] text-olive-500 border-b border-forest-700/40 pb-2">
                             <span className="font-mono">ID: {message.id}</span>
                             <span>{new Date(parseInt(message.internalDate)).toLocaleString()}</span>
                           </div>
                           {isHtml ? (
                             <div
-                              className="text-xs text-slate-300 leading-relaxed overflow-x-auto max-w-full"
+                              className="text-xs text-cream-200 leading-relaxed overflow-x-auto max-w-full"
                               dangerouslySetInnerHTML={{ __html: bodyText }}
                             />
                           ) : (
-                            <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{bodyText}</p>
+                            <p className="text-xs text-cream-200 leading-relaxed whitespace-pre-wrap">{bodyText}</p>
                           )}
                         </div>
                       );
@@ -655,68 +722,109 @@ export default function InboxPage() {
               )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 min-h-[400px]">
+            <div className="h-full flex flex-col items-center justify-center text-olive-500 min-h-[400px]">
               <svg className="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               <p className="text-xs font-medium">Select a thread or compose a new email</p>
-              <p className="text-[10px] text-slate-600 mt-1">Use J / K to navigate, Enter to open</p>
+              <p className="text-[10px] text-olive-500 mt-1">Use J / K to navigate, Enter to open</p>
             </div>
           )}
         </div>
 
-        {/* Sidebar: Calendar Today's Events */}
-        <div className="col-span-3 border-l border-slate-800/80 bg-slate-900/10 p-4 overflow-y-auto max-h-[calc(100vh-73px)]">
+        {/* Sidebar: AI Insights & Calendar */}
+        <div className="col-span-3 border-l border-forest-700/80 bg-forest-900/20 p-4 overflow-y-auto max-h-[calc(100vh-73px)] space-y-6">
+          
+          {/* AI Insights Panel */}
+          {activeInsight && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-forest-700/80">
+                <h3 className="font-extrabold text-xs tracking-wider uppercase text-olive-400 flex items-center space-x-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>AI Insight</span>
+                </h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
+                  activeInsight.priority === 'urgent' ? 'bg-danger-light text-danger border-rose-500/30' :
+                  activeInsight.priority === 'high' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                  'bg-forest-700 text-cream-200 border-forest-600'
+                }`}>
+                  {activeInsight.priority}
+                </span>
+              </div>
+              
+              <div className="p-4 bg-forest-800/40 border border-forest-700 rounded-xl space-y-3">
+                <p className="text-sm font-semibold text-cream-100 leading-snug">{activeInsight.summary}</p>
+                <div className="bg-forest-950/50 p-3 rounded-lg border border-forest-700/60">
+                  <p className="text-xs text-olive-400 italic">"{activeInsight.reason}"</p>
+                </div>
+                
+                {activeInsight.suggestedAction === "schedule" && (
+                  <button
+                    onClick={handleOpenPeekModal}
+                    disabled={scheduleMutation.isPending}
+                    className="w-full mt-2 py-2 bg-wheat-500 hover:bg-wheat-400 text-xs font-bold text-cream-100 rounded-lg transition-all shadow-lg shadow-wheat-500/20 flex items-center justify-center space-x-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <span>{scheduleMutation.isPending ? "Scheduling..." : "Schedule + Reply"}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800/80">
-              <h3 className="font-extrabold text-xs tracking-wider uppercase text-slate-400 flex items-center space-x-1">
-                <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <div className="flex justify-between items-center pb-2 border-b border-forest-700/80">
+              <h3 className="font-extrabold text-xs tracking-wider uppercase text-olive-400 flex items-center space-x-1">
+                <svg className="w-3.5 h-3.5 text-wheat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>Today's Schedule</span>
+                <span>Up Next</span>
               </h3>
               <Link
                 href="/calendar"
                 id="calendar-link"
-                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-widest"
+                className="text-[10px] font-bold text-wheat-500 hover:text-wheat-400 uppercase tracking-widest flex items-center space-x-1"
               >
-                View Week (GC)
+                <span>Full Calendar</span>
               </Link>
             </div>
 
             {!calendarConnected ? (
-              <div className="p-4 bg-slate-900/40 border border-slate-800 rounded-xl text-center space-y-2">
-                <p className="text-[11px] text-slate-400">Calendar integration not connected</p>
+              <div className="p-4 bg-forest-800/40 border border-forest-700 rounded-xl text-center space-y-2">
+                <p className="text-[11px] text-olive-400">Calendar integration not connected</p>
                 <button
                   onClick={handleToggleCalendar}
-                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-[10px] font-bold rounded-lg text-white"
+                  className="px-3 py-1 bg-wheat-500 hover:bg-wheat-400 text-[10px] font-bold rounded-lg text-cream-100"
                 >
                   Connect Calendar
                 </button>
               </div>
-            ) : todaysEvents.length === 0 ? (
-              <div className="p-6 bg-slate-900/20 border border-slate-800/60 rounded-xl text-center text-slate-500">
-                <p className="text-[11px]">No events scheduled for today</p>
+            ) : upcomingEvents.length === 0 ? (
+              <div className="p-6 bg-forest-900/20 border border-forest-700/60 rounded-xl text-center text-olive-500">
+                <p className="text-[11px]">No upcoming events</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {todaysEvents.map((event: any) => {
-                  const startVal = event.start?.dateTime || event.start?.date;
-                  const endVal = event.end?.dateTime || event.end?.date;
-                  const startTime = startVal ? new Date(startVal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "All Day";
-                  const endTime = endVal ? new Date(endVal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+              <div className="space-y-3">
+                {upcomingEvents.slice(0, 2).map((event: any) => {
+                  const startStr = event.start?.dateTime || event.start?.date;
+                  const endStr = event.end?.dateTime || event.end?.date;
+                  const start = new Date(startStr);
+                  const isToday = start.toDateString() === new Date().toDateString();
+                  const dateLabel = isToday ? "Today" : start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                  const startTime = startStr ? new Date(startStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "All Day";
+                  const endTime = endStr ? new Date(endStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
 
                   return (
-                    <div key={event.id} className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl hover:border-slate-700/60 transition-all space-y-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-xs text-slate-200 line-clamp-1">{event.summary || "(No Title)"}</h4>
-                        <span className="text-[9px] bg-slate-800 text-indigo-300 px-1 py-0.2 rounded border border-slate-750 font-mono">
-                          {startTime} {endTime ? `- ${endTime}` : ""}
-                        </span>
+                    <div key={event.id} className="p-3 bg-forest-900/60 border border-forest-700/80 rounded-xl hover:border-forest-600/60 transition-all space-y-1 relative overflow-hidden group hover:bg-forest-700/40 cursor-pointer">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-wheat-400 rounded-l-xl"></div>
+                      <div className="flex justify-between items-start ml-1">
+                        <h4 className="font-bold text-[11px] text-cream-100 line-clamp-1">{event.summary || "(No Title)"}</h4>
                       </div>
-                      {event.description && <p className="text-[10px] text-slate-400 line-clamp-1">{event.description}</p>}
+                      <p className="text-[10px] text-wheat-500 font-mono ml-1 mt-0.5">
+                        {dateLabel} • {startTime} {endTime ? `- ${endTime}` : ""}
+                      </p>
                       {event.location && (
-                        <div className="flex items-center space-x-1 text-[9px] text-slate-500">
+                        <div className="flex items-center space-x-1 text-[9px] text-olive-500 ml-1">
                           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -735,13 +843,13 @@ export default function InboxPage() {
 
       {/* MODAL: Compose */}
       {isComposeOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200">Compose New Email</h3>
+        <div className="fixed inset-0 z-50 bg-forest-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100">Compose New Email</h3>
               <button
                 onClick={() => setIsComposeOpen(false)}
-                className="text-slate-400 hover:text-slate-200 transition-all text-xs"
+                className="text-olive-400 hover:text-cream-100 transition-all text-xs"
               >
                 x Close
               </button>
@@ -749,19 +857,19 @@ export default function InboxPage() {
 
             <form onSubmit={handleSendCompose} className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">To</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">To</label>
                 <input
                   type="email"
                   value={composeTo}
                   onChange={(e) => setComposeTo(e.target.value)}
                   required
                   placeholder="recipient@example.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-100 focus:outline-none focus:border-wheat-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Subject</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Subject</label>
                 <input
                   type="text"
                   value={composeSubject}
@@ -773,7 +881,7 @@ export default function InboxPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Message Body</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Message Body</label>
                 <textarea
                   rows={6}
                   value={composeBody}
@@ -788,14 +896,14 @@ export default function InboxPage() {
                 <button
                   type="button"
                   onClick={() => setIsComposeOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300"
+                  className="px-4 py-2 bg-forest-700 hover:bg-forest-600 text-xs font-semibold rounded-xl text-cream-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={sendMutation.isPending}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-indigo-600/10"
+                  className="px-4 py-2 bg-wheat-500 hover:bg-wheat-400 text-xs font-semibold rounded-xl text-cream-100 shadow-md shadow-wheat-500/10"
                 >
                   {sendMutation.isPending ? "Sending..." : "Send Email"}
                 </button>
@@ -807,10 +915,10 @@ export default function InboxPage() {
 
       {/* MODAL: Reply */}
       {isReplyOpen && activeThread && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200">
+        <div className="fixed inset-0 z-50 bg-forest-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100">
                 Reply to Thread #{activeThread.id.substring(0, 8)}
               </h3>
               <button
@@ -823,14 +931,14 @@ export default function InboxPage() {
 
             <form onSubmit={handleSendReply} className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Subject</label>
-                <div className="w-full bg-slate-950/50 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-400">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Subject</label>
+                <div className="w-full bg-forest-950/50 border border-forest-700 rounded-xl px-3 py-2 text-xs text-olive-400">
                   Re: {activeThread.snippet.substring(0, 50)}...
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Your Reply</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Your Reply</label>
                 <textarea
                   rows={6}
                   value={replyBody}
@@ -864,10 +972,10 @@ export default function InboxPage() {
 
       {/* MODAL: Cheatsheet */}
       {showCheatsheet && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200 flex items-center space-x-1.5">
+        <div className="fixed inset-0 z-50 bg-forest-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100 flex items-center space-x-1.5">
                 <span>{"\u2328\uFE0F"} Keyboard Shortcuts</span>
               </h3>
               <button
@@ -879,48 +987,48 @@ export default function InboxPage() {
             </div>
 
             <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Archive Selected Thread</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">e</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Archive Selected Thread</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">e</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Reply to Thread</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">r</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Reply to Thread</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">r</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Compose New Email</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">c</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Compose New Email</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">c</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Delete / Trash Selected Thread</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">#</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Delete / Trash Selected Thread</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">#</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Toggle Star Status</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">s</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Toggle Star Status</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">s</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Select Next Thread</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">j</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Select Next Thread</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">j</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Select Previous Thread</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">k</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Select Previous Thread</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">k</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Go to Inbox Page</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">gi</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Go to Inbox Page</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">gi</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/40 text-xs">
-                <span className="text-slate-400">Go to Calendar Page</span>
-                <kbd className="bg-slate-950 border border-slate-850 px-2 py-0.5 rounded text-indigo-400 font-mono font-bold">gc</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
+                <span className="text-olive-400">Go to Calendar Page</span>
+                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">gc</kbd>
               </div>
             </div>
 
             <div className="pt-2 text-center">
               <button
                 onClick={() => setShowCheatsheet(false)}
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white"
+                className="w-full py-2 bg-wheat-500 hover:bg-wheat-400 text-xs font-semibold rounded-xl text-cream-100"
               >
                 Got it
               </button>
@@ -928,6 +1036,29 @@ export default function InboxPage() {
           </div>
         </div>
       )}
+
+      <CommandPalette 
+        isOpen={isCommandOpen} 
+        setIsOpen={setIsCommandOpen} 
+        hasActiveThread={!!activeThread}
+        onArchive={() => handleArchive(activeThread)}
+        onReply={() => handleOpenReply()}
+        onSchedule={() => {
+          if (activeInsight?.suggestedAction === 'schedule') {
+             handleScheduleFromInsight();
+          } else {
+             showToast("AI doesn't suggest scheduling for this thread.", "info");
+          }
+        }}
+        onDelete={() => handleDelete(activeThread)}
+      />
+      
+      {/* Peek Calendar Modal */}
+      <PeekCalendarModal 
+        isOpen={showPeekModal} 
+        onClose={() => setShowPeekModal(false)} 
+        onConfirm={handleConfirmPeekSchedule} 
+      />
     </div>
   );
 }

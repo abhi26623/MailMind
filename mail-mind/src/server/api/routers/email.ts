@@ -238,4 +238,18 @@ export const emailRouter = createTRPCRouter({
         });
       return event;
     }),
+
+  /** Delete a calendar event (Google auto-notifies attendees via sendUpdates). */
+  deleteEvent: protectedProcedure
+    .input(z.object({ eventId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+      await (corsair.withTenant(ctx.tenantId) as any)
+        .googlecalendar.api.events.delete({
+          calendarId: "primary",
+          eventId: input.eventId,
+          sendUpdates: "all",
+        });
+      return { success: true };
+    }),
 });

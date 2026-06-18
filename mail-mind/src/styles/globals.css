@@ -3,4 +3,95 @@
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* ═══════════════════════════════════════════
+     Olive Garden Feast — Color Palette
+     ═══════════════════════════════════════════ */
+
+  /* Forest — Dark backgrounds */
+  --color-forest-950: #1A231A;
+  --color-forest-900: #222D22;
+  --color-forest-800: #2D3929;
+  --color-forest-700: #3A4A3A;
+  --color-forest-600: #4A5E4A;
+
+  /* Olive — Muted text, borders, secondary */
+  --color-olive-600: #6E6E2E;
+  --color-olive-500: #8B8B3A;
+  --color-olive-400: #A3A34E;
+  --color-olive-300: #B8B86A;
+
+  /* Cream — Primary text, headings */
+  --color-cream-100: #F2EBCE;
+  --color-cream-200: #E8DFB8;
+  --color-cream-300: #D4C89A;
+
+  /* Wheat — Accent buttons, links, highlights */
+  --color-wheat-50: #D4A85C0D;
+  --color-wheat-100: #D4A85C1A;
+  --color-wheat-200: #D4A85C33;
+  --color-wheat-300: #D4A85C4D;
+  --color-wheat-400: #E0BA72;
+  --color-wheat-500: #D4A85C;
+  --color-wheat-600: #C09548;
+
+  /* Amber — CTA, gradients, strong accents */
+  --color-amber-400: #D08E3E;
+  --color-amber-500: #BE7B2E;
+  --color-amber-600: #A86A22;
+
+  /* Semantic — Availability, Danger, Success */
+  --color-avail: #5A8C3A;
+  --color-avail-light: #5A8C3A33;
+  --color-danger: #C0392B;
+  --color-danger-light: #C0392B1A;
+  --color-success: #5A8C3A;
+  --color-success-light: #5A8C3A1A;
+}
+
+/* Smooth scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-forest-950);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-forest-700);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-olive-600);
+}
+
+/* Animation keyframes */
+@keyframes scale-up {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-scale-up {
+  animation: scale-up 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
 }
