@@ -4,7 +4,7 @@ import { AGENT_MODELS } from '@/lib/ai'
 import { z } from 'zod'
 import type OpenAI from 'openai'
 import { db } from '@/server/db'
-import { availabilityBlocks } from '@/server/db/schema'
+import { availabilityBlocks, schedulingNegotiations } from '@/server/db/schema'
 import { eq, gte, lte, and } from 'drizzle-orm'
 
 /**
@@ -92,6 +92,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
   throw lastErr
 }
+
 
 
 /** Format raw API JSON result into a friendly human-readable markdown summary. */
@@ -183,40 +184,7 @@ export async function runAgent(
 
   console.log(`[runAgent] Tools for tenant ${tenantId}: ${openaiTools.length}`)
 
-  // Pre-fetch user's availability blocks for the next 2 weeks
-  let availabilitySummary = 'No availability blocks set yet. If the user asks to schedule a meeting, suggest they mark available times on the Calendar page first.'
-  try {
-    const today = new Date()
-    const twoWeeksLater = new Date(today)
-    twoWeeksLater.setDate(today.getDate() + 14)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    
-    const blocks = await db.query.availabilityBlocks.findMany({
-      where: and(
-        eq(availabilityBlocks.tenantId, tenantId),
-        gte(availabilityBlocks.date, formatDate(today)),
-        lte(availabilityBlocks.date, formatDate(twoWeeksLater)),
-      ),
-    })
 
-    if (blocks.length > 0) {
-      const sorted = [...blocks].sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? -1 : 1
-        return a.hourStart - b.hourStart
-      })
-      const lines = sorted.map(b => {
-        const d = new Date(b.date + 'T00:00:00+05:30')
-        const dayLabel = d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })
-        const startH = b.hourStart > 12 ? `${b.hourStart - 12} PM` : b.hourStart === 12 ? '12 PM' : `${b.hourStart} AM`
-        const endH = b.hourEnd > 12 ? `${b.hourEnd - 12} PM` : b.hourEnd === 12 ? '12 PM' : `${b.hourEnd} AM`
-        return `  - ${dayLabel}: ${startH} – ${endH}`
-      })
-      availabilitySummary = `User's marked availability (next 2 weeks):\n${lines.join('\n')}\n\nUse these blocks when suggesting meeting slots. Cross-reference with actual calendar events to find conflict-free times.`
-    }
-  } catch (err) {
-    console.warn('[runAgent] Failed to fetch availability:', err)
-  }
 
   const systemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
     role: 'system',
@@ -236,30 +204,6 @@ IMPORTANT RULES:
 
    Do NOT ask for them separately. Do NOT use any other format. Use exactly these tag names.
 5. ALWAYS assume the timezone is IST (Asia/Kolkata, UTC+05:30). Do not ask the user to confirm their timezone.
-
-SCHEDULING NEGOTIATION WORKFLOW:
-When the user asks to "schedule a meeting with [person]" or "find a time with [person]":
-1. Check the user's availability blocks listed below.
-2. Use run_script to call googlecalendar.api.events.getMany for the requested date range to find busy times.
-3. Find slots that are INSIDE availability blocks AND have NO calendar conflicts.
-4. Present exactly 3 options as a numbered list.
-5. When the user approves sending, compose an email with these numbered options:
-   Subject: "Meeting request — [duration] minutes"
-   Body:
-   "Hi [name],
-   
-   I'd like to schedule a [duration]-minute meeting. I'm available at these times:
-   
-   1. [Day, Date · Time IST]
-   2. [Day, Date · Time IST]
-   3. [Day, Date · Time IST]
-   
-   Please reply with the number that works best for you.
-   
-   Best regards"
-6. After sending, tell the user: "Options sent to [email]! I'll notify you when they reply."
-
-${availabilitySummary}
 
 TECHNICAL:
 - The current tenant id is already provided by the server: "${tenantId}".
@@ -420,6 +364,10 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
       let content = message.content ?? ''
       let suggestions: string[] = []
 
+      // Sanitize leaked tool tags from OpenRouter/Gemini
+      content = content.replace(/<zc_external_tool_code>[\s\S]*?(?:<\/zc_external_tool_code>|$)/gi, '').trim()
+      content = content.replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, '').trim()
+
       // Extract [SUGGESTIONS: "A" | "B"]
       const match = content.match(/\[SUGGESTIONS:\s*(.*?)\]/i)
       if (match) {
@@ -449,11 +397,22 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
       let resultContent: string
       if (handler) {
         try {
-          const parsedArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
-          const args = sanitizeToolArgs(toolCall.function.name, parsedArgs)
+          const args = JSON.parse(toolCall.function.arguments)
+          const sanitizedArgs = sanitizeToolArgs(toolCall.function.name, args)
 
           if (toolCall.function.name === 'run_script') {
             const code = (args.code as string) || (args.script as string) || (args.snippet as string) || "";
+            
+            // Block agent from confusing native tools with Corsair APIs
+            if (code.includes("create_scheduling_negotiation")) {
+              chatMessages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: "ERROR: mailmind_create_scheduling_negotiation is a native tool call, NOT a javascript method on corsair. Do not use it inside run_script. Use the mailmind_create_scheduling_negotiation tool directly.",
+              });
+              continue;
+            }
+
             const isWriteAction = code.includes(".send(") || code.includes(".create(") || code.includes(".modify(") || code.includes(".trash(") || code.includes(".delete(");
 
             if (isWriteAction) {
@@ -469,7 +428,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
             }
           }
 
-          const result = await handler(args)
+          const result = await handler(sanitizedArgs)
           const text = extractToolText(result)
           resultContent = text || JSON.stringify(result)
           if (result.isError) {

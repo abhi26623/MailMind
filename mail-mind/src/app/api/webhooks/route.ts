@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { hashTenantId } from '@/lib/hash'
 import { webhookBus } from '@/lib/events'
 import { openrouter, AGENT_MODELS } from '@/lib/ai'
+import { syncEmbeddingsForTenant } from '@/server/embeddings-sync'
 
 export async function POST(req: Request) {
   const url = new URL(req.url)
@@ -74,6 +75,12 @@ export async function POST(req: Request) {
 
     if (result.plugin) {
       console.log(`[Webhook] Handled by ${result.plugin}.${result.action}`)
+      // Trigger embeddings sync in the background
+      if (result.plugin === 'gmail') {
+        syncEmbeddingsForTenant(tenantId).catch(err => {
+          console.error('[Webhook] Background embeddings sync failed:', err)
+        })
+      }
     } else {
       console.log('[Webhook] No plugin matched -- still notifying SSE clients')
     }
@@ -107,6 +114,12 @@ export async function POST(req: Request) {
 
         // Get the latest message (the reply)
         const latestMessage = messages[messages.length - 1]
+        const latestFrom = getHeader(latestMessage, 'from').toLowerCase()
+        if (latestFrom && !latestFrom.includes(String(neg.recipientEmail).toLowerCase())) {
+          console.log(`[Webhook] Ignoring scheduling thread update from non-recipient: ${latestFrom}`)
+          continue
+        }
+
         const replyBody = extractPlainTextBody(latestMessage)
         
         if (!replyBody) continue
@@ -148,6 +161,14 @@ export async function POST(req: Request) {
             .set({
               status: 'replied',
               chosenSlot: slots[chosenIndex],
+              updatedAt: new Date(),
+            })
+            .where(eq(schedulingNegotiations.id, neg.id))
+        } else {
+          console.log(`[Webhook] Scheduling reply was unclear for ${neg.recipientEmail}`)
+          await db.update(schedulingNegotiations)
+            .set({
+              status: 'unclear',
               updatedAt: new Date(),
             })
             .where(eq(schedulingNegotiations.id, neg.id))
@@ -198,4 +219,12 @@ function extractPlainTextBody(message: any): string {
   }
 
   return ''
+}
+
+function getHeader(message: any, name: string): string {
+  const headers = message?.payload?.headers ?? []
+  const found = headers.find((header: any) =>
+    String(header?.name ?? '').toLowerCase() === name.toLowerCase()
+  )
+  return String(found?.value ?? '')
 }

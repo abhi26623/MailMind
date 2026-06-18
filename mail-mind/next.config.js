@@ -6,7 +6,7 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
-  serverExternalPackages: ["@corsair-dev/mcp", "express"],
+  serverExternalPackages: ["@corsair-dev/mcp", "express", "@huggingface/transformers", "onnxruntime-node"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
 };

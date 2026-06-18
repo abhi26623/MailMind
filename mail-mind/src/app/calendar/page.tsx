@@ -23,7 +23,7 @@ export default function CalendarPage() {
   const { data: status } = api.email.getConnectionStatus.useQuery();
 
   const [calendarView, setCalendarView] = useState<"day" | "week">("week");
-  const [mode, setMode] = useState<"view" | "availability">("view");
+
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, +1 = next week, etc.
 
   // Date range: current week/day offset by weekOffset
@@ -65,36 +65,8 @@ export default function CalendarPage() {
     }
   );
 
-  // ── Availability blocks ─────────────────────────────────────────────────
 
-  const { data: availBlocks, refetch: refetchAvail } = api.availability.getBlocks.useQuery(
-    {
-      dateFrom: formatDate(currentDays[0]!),
-      dateTo: formatDate(currentDays[currentDays.length - 1]!),
-    },
-    { enabled: !!status?.googlecalendar?.connected || mode === "availability" }
-  );
 
-  const toggleAvailability = api.availability.setBlock.useMutation({
-    onSuccess: () => void refetchAvail(),
-  });
-
-  // ── Scheduling negotiations ─────────────────────────────────────────────
-
-  const { data: activeNegotiations } = api.scheduling.getActive.useQuery();
-
-  const bookMeeting = api.scheduling.book.useMutation({
-    onSuccess: () => {
-      showToast("Meeting booked successfully!", "success");
-      void refetch();
-    },
-    onError: (err) => showToast(`Booking failed: ${err.message}`, "error"),
-  });
-
-  const cancelNegotiation = api.scheduling.cancel.useMutation({
-    onSuccess: () => showToast("Negotiation cancelled", "success"),
-    onError: (err) => showToast(`Cancel failed: ${err.message}`, "error"),
-  });
 
   // ── Event delete ────────────────────────────────────────────────────────
 
@@ -253,16 +225,7 @@ export default function CalendarPage() {
 
   // ── Availability block positioning ──────────────────────────────────────
 
-  const getAvailBlockStyle = (block: any) => {
-    const h = block.hourStart;
-    const hEnd = block.hourEnd;
-    const viewStart = Math.max(8, Math.min(20, h));
-    const viewEnd = Math.max(8, Math.min(20, hEnd));
-    if (viewEnd <= viewStart) return { display: "none" as const };
-    const topPercent = ((viewStart - 8) / 12) * 100;
-    const heightPercent = ((viewEnd - viewStart) / 12) * 100;
-    return { top: `${topPercent}%`, height: `${heightPercent}%` };
-  };
+
 
   // ── Slot click: mode-aware ──────────────────────────────────────────────
 
@@ -281,22 +244,7 @@ export default function CalendarPage() {
     setIsInviteOpen(true);
   };
 
-  const handleCellClick = (day: Date, hour: number) => {
-    if (mode === "availability") {
-      const dateStr = formatDate(day);
-      toggleAvailability.mutate({ date: dateStr, hourStart: hour, hourEnd: hour + 1 });
-    } else {
-      handleSlotClick(day, hour);
-    }
-  };
 
-  // ── Helpers for availability lookup ─────────────────────────────────────
-
-  const getAvailBlocksForDay = (day: Date) => {
-    if (!availBlocks) return [];
-    const dateStr = formatDate(day);
-    return availBlocks.filter((b: any) => b.date === dateStr);
-  };
 
   // ── Status badge for negotiations ───────────────────────────────────────
 
@@ -306,6 +254,8 @@ export default function CalendarPage() {
         return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-wheat-200 text-wheat-500">Sent</span>;
       case "replied":
         return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-avail-light text-avail">Replied</span>;
+      case "unclear":
+        return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-wheat-100 text-wheat-500">Needs review</span>;
       case "pending":
         return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-wheat-100 text-olive-400">Pending</span>;
       default:
@@ -397,28 +347,11 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          {/* Availability mode toggle */}
-          <button
-            onClick={() => setMode(mode === "view" ? "availability" : "view")}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all border flex items-center space-x-1.5 ${
-              mode === "availability"
-                ? "bg-avail-light border-avail/40 text-avail"
-                : "bg-forest-800 border-forest-600 text-olive-400 hover:text-cream-200"
-            }`}
-          >
-            <span>✅</span>
-            <span>{mode === "availability" ? "Exit Availability" : "Set Availability"}</span>
-          </button>
-
           {/* Legend */}
           <div className="hidden md:flex items-center space-x-3 text-[10px] text-olive-500 border-l border-forest-700 pl-3">
             <span className="flex items-center space-x-1">
               <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-r from-wheat-500 to-amber-500" />
               <span>Events</span>
-            </span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-avail" />
-              <span>Available</span>
             </span>
           </div>
 
@@ -517,59 +450,20 @@ export default function CalendarPage() {
                   <div key={dayIdx} className="relative border-r border-forest-700/40 min-h-[1040px]">
                     {/* Hour slots interactive click area */}
                     {workHours.slice(0, -1).map((hour) => {
-                      // Check if this hour is an availability block (for bg highlight)
-                      const isAvail = getAvailBlocksForDay(day).some(
-                        (b: any) => b.hourStart <= hour && b.hourEnd > hour
-                      );
+                      // Simplified cell block
                       return (
                         <div
                           key={hour}
-                          onClick={() => handleCellClick(day, hour)}
-                          className={`h-20 border-b border-forest-700/25 transition-all cursor-pointer relative group ${
-                            mode === "availability"
-                              ? isAvail
-                                ? "bg-avail/10 hover:bg-danger-light"
-                                : "hover:bg-avail-light"
-                              : "hover:bg-wheat-50"
-                          }`}
-                          title={mode === "availability" ? (isAvail ? "Click to remove availability" : "Click to mark available") : "Click to schedule invite"}
+                          onClick={() => handleSlotClick(day, hour)}
+                          className="h-20 border-b border-forest-700/25 transition-all cursor-pointer relative group hover:bg-wheat-50"
+                          title="Click to schedule invite"
                         >
-                          <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[10px] font-bold pointer-events-none">
-                            {mode === "availability" ? (
-                              <span className={isAvail ? "text-danger" : "text-avail"}>
-                                {isAvail ? "− Remove" : "+ Available"}
-                              </span>
-                            ) : (
-                              <span className="text-wheat-500">+ Book Slot</span>
-                            )}
+                          <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[10px] font-bold pointer-events-none text-wheat-500">
+                            + Book Slot
                           </span>
                         </div>
                       );
                     })}
-
-                    {/* ── Availability block overlays (z-5, below events) ── */}
-                    {getAvailBlocksForDay(day).map((block: any) => (
-                      <div
-                        key={block.id}
-                        style={getAvailBlockStyle(block)}
-                        className={`absolute left-1 right-1 bg-avail-light border border-avail/50 border-dashed rounded-lg flex items-center justify-center z-[5] ${
-                          mode === "availability"
-                            ? "cursor-pointer hover:bg-avail/20"
-                            : "pointer-events-none"
-                        }`}
-                        onClick={() => {
-                          if (mode === "availability") {
-                            toggleAvailability.mutate({
-                              date: block.date,
-                              hourStart: block.hourStart,
-                              hourEnd: block.hourEnd,
-                            });
-                          }
-                        }}
-                      >
-                        <span className="text-[9px] font-bold text-avail select-none">Available</span>
-                      </div>
-                    ))}
 
                     {/* ── Calendar events (z-10) ───────────────────────── */}
                     {groupedEvents[day.getDay()]?.map((event: any) => {
@@ -657,50 +551,7 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* ── Scheduling Negotiations ─────────────────────────────── */}
-            <h3 className="font-extrabold text-xs tracking-wider uppercase text-olive-400 flex items-center space-x-1 pb-2 border-b border-forest-700 mt-4">
-              <span>📨</span>
-              <span>Scheduling</span>
-            </h3>
 
-            {!activeNegotiations || activeNegotiations.length === 0 ? (
-              <div className="text-center py-4 text-olive-500 text-xs">No active negotiations.</div>
-            ) : (
-              <div className="space-y-3">
-                {activeNegotiations.map((neg: any) => (
-                  <div key={neg.id} className="p-3 bg-forest-950 border border-forest-700/60 rounded-xl space-y-2 relative overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-avail" />
-                    <div className="flex items-center justify-between ml-1">
-                      <h4 className="font-bold text-xs text-cream-200 truncate">
-                        {neg.recipientName || neg.recipientEmail}
-                      </h4>
-                      {statusBadge(neg.status)}
-                    </div>
-                    <p className="text-[10px] text-olive-400 ml-1">{neg.duration} min meeting</p>
-
-                    {/* If replied and chosenSlot exists, show book/cancel buttons */}
-                    {neg.status === "replied" && neg.chosenSlot && (
-                      <div className="flex items-center space-x-2 ml-1 pt-1">
-                        <button
-                          onClick={() => bookMeeting.mutate({ negotiationId: neg.id })}
-                          disabled={bookMeeting.isPending}
-                          className="px-2.5 py-1 text-[10px] font-bold bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 text-forest-950 rounded-lg transition-all"
-                        >
-                          {bookMeeting.isPending ? "Booking…" : "Book Meeting"}
-                        </button>
-                        <button
-                          onClick={() => cancelNegotiation.mutate({ negotiationId: neg.id })}
-                          disabled={cancelNegotiation.isPending}
-                          className="px-2.5 py-1 text-[10px] font-bold bg-danger-light border border-danger/30 text-danger rounded-lg hover:bg-danger/20 transition-all"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

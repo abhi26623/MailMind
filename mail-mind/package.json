@@ -27,6 +27,7 @@
     "@corsair-dev/gmail": "^0.1.4",
     "@corsair-dev/googlecalendar": "^0.1.3",
     "@corsair-dev/mcp": "^0.1.22",
+    "@huggingface/transformers": "^4.2.0",
     "@t3-oss/env-nextjs": "^0.12.0",
     "@tanstack/react-query": "^5.69.0",
     "@trpc/client": "^11.0.0",
@@ -40,6 +41,7 @@
     "ioredis": "^5.11.1",
     "next": "^15.2.3",
     "openai": "^6.42.0",
+    "pgvector": "^0.3.0",
     "postgres": "^3.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -76,7 +78,9 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp",
-      "unrs-resolver"
+      "unrs-resolver",
+      "onnxruntime-node",
+      "protobufjs"
     ]
   }
 }

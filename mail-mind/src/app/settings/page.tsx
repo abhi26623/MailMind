@@ -89,22 +89,24 @@ export default function SettingsPage() {
             <div className="space-y-4">
               {/* Gmail Toggle */}
               <div className="flex items-center justify-between p-5 bg-forest-800/30 border border-forest-700 rounded-xl hover:border-forest-600/50 transition-all">
-                <div className="flex items-center space-x-4">
-                  <div className="p-2.5 bg-red-500/10 text-red-400 rounded-lg">
+                <div className="flex items-center space-x-4 flex-1 min-w-0 pr-4">
+                  <div className="p-2.5 bg-red-500/10 text-red-400 rounded-lg shrink-0">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-cream-200">Gmail Integration</h3>
-                    <p className="text-xs text-olive-400">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-cream-200 truncate">Gmail Integration</h3>
+                    <p className="text-xs text-olive-400 mt-0.5">
                       {isDisconnecting && gmailActive
                         ? "Disconnecting..."
                         : gmailActive
                         ? "Connected \u2713"
+                        : status?.gmail.error?.includes("Account not found") || status?.gmail.error?.includes("auth-missing")
+                        ? "Please connect to Gmail to use this integration."
                         : status?.gmail.error && status.gmail.error !== "Not connected"
                         ? status.gmail.error
-                        : "Click toggle to connect"}
+                        : "Click connect to link your account"}
                     </p>
                   </div>
                 </div>
@@ -113,7 +115,7 @@ export default function SettingsPage() {
                   id="toggle-gmail"
                   onClick={handleToggleGmail}
                   disabled={isDisconnecting}
-                  className={`px-4 py-2 font-semibold text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-forest-900 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`shrink-0 px-4 py-2 font-semibold text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-forest-900 disabled:opacity-50 disabled:cursor-not-allowed ${
                     gmailActive
                       ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 focus:ring-red-500"
                       : "bg-wheat-500 text-forest-950 hover:bg-wheat-400 focus:ring-wheat-500"
@@ -125,22 +127,24 @@ export default function SettingsPage() {
 
               {/* Google Calendar Toggle */}
               <div className="flex items-center justify-between p-5 bg-forest-800/30 border border-forest-700 rounded-xl hover:border-forest-600/50 transition-all">
-                <div className="flex items-center space-x-4">
-                  <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-lg">
+                <div className="flex items-center space-x-4 flex-1 min-w-0 pr-4">
+                  <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-lg shrink-0">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-cream-200">Google Calendar</h3>
-                    <p className="text-xs text-olive-400">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-cream-200 truncate">Google Calendar</h3>
+                    <p className="text-xs text-olive-400 mt-0.5">
                       {isDisconnecting && calendarActive
                         ? "Disconnecting..."
                         : calendarActive
                         ? "Connected \u2713"
+                        : status?.googlecalendar.error?.includes("Account not found") || status?.googlecalendar.error?.includes("auth-missing")
+                        ? "Please connect to Google Calendar to use this integration."
                         : status?.googlecalendar.error && status.googlecalendar.error !== "Not connected"
                         ? status.googlecalendar.error
-                        : "Click toggle to connect"}
+                        : "Click connect to link your account"}
                     </p>
                   </div>
                 </div>
@@ -149,7 +153,7 @@ export default function SettingsPage() {
                   id="toggle-calendar"
                   onClick={handleToggleCalendar}
                   disabled={isDisconnecting}
-                  className={`px-4 py-2 font-semibold text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-forest-900 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`shrink-0 px-4 py-2 font-semibold text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-forest-900 disabled:opacity-50 disabled:cursor-not-allowed ${
                     calendarActive
                       ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 focus:ring-red-500"
                       : "bg-wheat-500 text-forest-950 hover:bg-wheat-400 focus:ring-wheat-500"

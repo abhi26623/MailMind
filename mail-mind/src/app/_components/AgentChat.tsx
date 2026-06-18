@@ -71,6 +71,8 @@ function parseSuggestions(content: string): { cleaned: string; suggestions: stri
   return { cleaned, suggestions }
 }
 
+
+
 // ─── Chip Group Row with "Other..." inline input ───────────────────────────
 function ChipGroupRow({
   group,
@@ -307,15 +309,50 @@ export function AgentChat() {
       const { cleaned: c2, suggestions } = parseSuggestions(c1)
       content = c2
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content,
-        actions: data.actions,
-        suggestions: data.suggestions?.length ? data.suggestions : suggestions,
-        chipGroups: chipGroups.length ? chipGroups : undefined,
-        requiresConfirmation: data.requiresConfirmation,
-        pendingScript: data.pendingScript,
-      }])
+      // Auto-select any group that only has a single option
+      const initialSelections: Record<string, string> = {}
+      if (chipGroups.length > 0) {
+        chipGroups.forEach(g => {
+          if (g.options.length === 1) {
+            initialSelections[g.key] = g.options[0]!
+          }
+        })
+      }
+
+      // If every chip group has exactly 1 option, auto-submit the form so the user doesn't get stuck!
+      const allAutoSelected = chipGroups.length > 0 && Object.keys(initialSelections).length === chipGroups.length;
+      
+      setMessages(prev => {
+        const newMsgIdx = prev.length
+        
+        // If we found any single-item groups to auto-select, save them to state
+        if (!allAutoSelected && Object.keys(initialSelections).length > 0) {
+          setTimeout(() => {
+            setChipSelections(s => ({ ...s, [newMsgIdx]: initialSelections }))
+          }, 0)
+        }
+
+        const nextMessages = [...prev, {
+          role: 'assistant' as const,
+          content,
+          actions: data.actions,
+          suggestions: data.suggestions?.length ? data.suggestions : suggestions,
+          chipGroups: allAutoSelected ? undefined : (chipGroups.length ? chipGroups : undefined),
+          requiresConfirmation: data.requiresConfirmation,
+          pendingScript: data.pendingScript,
+        }]
+
+        if (allAutoSelected) {
+          const combined = chipGroups.map(g => initialSelections[g.key]!).join(', ')
+          setTimeout(() => {
+            const finalMessages = [...nextMessages, { role: 'user' as const, content: combined }]
+            setMessages(finalMessages)
+            chat.mutate({ messages: finalMessages })
+          }, 100)
+        }
+
+        return nextMessages
+      })
     },
     onError: (err) => {
       setMessages(prev => [...prev, {

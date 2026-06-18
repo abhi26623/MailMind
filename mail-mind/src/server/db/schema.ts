@@ -1,4 +1,4 @@
-import { pgTable, text, jsonb, timestamp, boolean, varchar, integer, date } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, timestamp, boolean, varchar, integer, date, index, vector } from 'drizzle-orm/pg-core';
 
 export const corsairIntegrations = pgTable('corsair_integrations', {
     id: text('id').primaryKey().notNull(),
@@ -137,4 +137,17 @@ export const schedulingNegotiations = pgTable('scheduling_negotiations', {
     status: text('status').notNull().default('pending'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const emailEmbeddings = pgTable('email_embeddings', {
+    id: text('id').primaryKey().notNull(),
+    tenantId: text('tenant_id').notNull(),
+    entityId: text('entity_id').notNull().references(() => corsairEntities.id, { onDelete: 'cascade' }),
+    embedding: vector('embedding', { dimensions: 768 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => {
+    return {
+        embeddingIndex: index('embeddingIndex').using('hnsw', table.embedding.op('vector_cosine_ops')),
+    };
 });

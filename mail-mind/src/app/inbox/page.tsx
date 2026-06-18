@@ -543,19 +543,28 @@ export default function InboxPage() {
                 <div key={i} className="h-24 bg-forest-900/60 animate-pulse rounded-xl" />
               ))}
             </div>
+          ) : !gmailConnected ? (
+            <div className="p-8 mt-12 flex-1 flex flex-col items-center justify-center text-olive-500 space-y-4 max-w-md mx-auto text-center">
+              <div className="p-4 bg-wheat-100 border border-wheat-500/20 rounded-2xl">
+                <svg className="w-12 h-12 text-wheat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-cream-200">Gmail Disconnected</h2>
+                <p className="text-xs text-olive-500 mt-1">Connect your Gmail via Corsair to sync your emails and threads.</p>
+              </div>
+              <button
+                onClick={handleToggleGmail}
+                className="px-5 py-2.5 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 text-xs font-semibold rounded-xl text-forest-950 shadow-lg shadow-wheat-500/20"
+              >
+                Connect Gmail
+              </button>
+            </div>
           ) : error || (data as any)?._error ? (
             <div className="p-8 text-center text-olive-400">
               <p className="text-red-400 font-medium mb-3">Failed to load threads</p>
-              {((data as any)?._error || error?.message || "").includes("auth-missing") ? (
-                <a
-                  href="/api/connect?plugin=gmail"
-                  className="inline-block px-5 py-2 text-xs font-semibold bg-wheat-500 hover:bg-wheat-400 text-cream-100 rounded-xl transition-all"
-                >
-                  Connect Gmail
-                </a>
-              ) : (
-                <p className="text-xs">{(data as any)?._error || error?.message}</p>
-              )}
+              <p className="text-xs">{(data as any)?._error || error?.message}</p>
             </div>
           ) : threads.length === 0 ? (
             <div className="p-8 text-center text-olive-400">

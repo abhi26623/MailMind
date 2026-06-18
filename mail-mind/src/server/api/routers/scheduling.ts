@@ -67,7 +67,7 @@ export const schedulingRouter = createTRPCRouter({
       const raw = Buffer.from(
         [
           `To: ${input.recipientEmail}`,
-          `Subject: Meeting request — ${input.duration} minutes`,
+          `Subject: Meeting request - ${input.duration} minutes`,
           `Content-Type: text/plain; charset=utf-8`,
           `MIME-Version: 1.0`,
           ``,
@@ -93,6 +93,54 @@ export const schedulingRouter = createTRPCRouter({
       });
 
       return { id, threadId: sendResult.threadId as string | null };
+    }),
+
+  /** Book the meeting: create calendar event + send confirmation email */
+  chooseSlot: protectedProcedure
+    .input(
+      z.object({
+        negotiationId: z.string(),
+        slotIndex: z.number().int().min(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const negotiation = await db.query.schedulingNegotiations.findFirst({
+        where: and(
+          eq(schedulingNegotiations.id, input.negotiationId),
+          eq(schedulingNegotiations.tenantId, ctx.tenantId)
+        ),
+      });
+
+      if (!negotiation) {
+        throw new Error("Negotiation not found");
+      }
+
+      const slots = negotiation.proposedSlots as {
+        start: string;
+        end: string;
+        label: string;
+      }[];
+      const slot = slots[input.slotIndex];
+
+      if (!slot) {
+        throw new Error("Slot not found");
+      }
+
+      await db
+        .update(schedulingNegotiations)
+        .set({
+          chosenSlot: slot,
+          status: "replied",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schedulingNegotiations.id, input.negotiationId),
+            eq(schedulingNegotiations.tenantId, ctx.tenantId)
+          )
+        );
+
+      return { success: true };
     }),
 
   /** Book the meeting: create calendar event + send confirmation email */

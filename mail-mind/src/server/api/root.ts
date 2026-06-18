@@ -6,6 +6,7 @@ import { insightsRouter } from "@/server/api/routers/insights";
 import { workflowRouter } from "@/server/api/routers/workflow";
 import { availabilityRouter } from "@/server/api/routers/availability";
 import { schedulingRouter } from "@/server/api/routers/scheduling";
+import { searchRouter } from "@/server/api/routers/search";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 /**
@@ -22,6 +23,7 @@ export const appRouter = createTRPCRouter({
   workflow: workflowRouter,
   availability: availabilityRouter,
   scheduling: schedulingRouter,
+  search: searchRouter,
 });
 
 // export type definition of API
