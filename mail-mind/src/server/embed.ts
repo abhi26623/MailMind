@@ -1,36 +1,41 @@
-import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
-
-env.allowLocalModels = false;
-
-class Embedder {
-  static task = 'feature-extraction' as const;
-  static model = 'Xenova/nomic-embed-text-v1';
-  static instance: Promise<FeatureExtractionPipeline> | null = null;
-
-  static async getInstance() {
-    if (this.instance === null) {
-      // Lazy load to prevent blocking cold starts
-      this.instance = pipeline(this.task, this.model) as Promise<FeatureExtractionPipeline>;
-    }
-    return this.instance;
-  }
-}
+import { env } from "@/env";
 
 /**
- * Generate a 768-dimensional embedding for a given text using nomic-embed-text.
- * Uses Transformers.js to run locally in the Node process.
+ * Generate a 768-dimensional embedding for a given text using Google's Gemini API.
+ * This completely removes the memory overhead of local ONNX models.
  */
 export async function embedText(text: string): Promise<number[]> {
-  const embedder = await Embedder.getInstance();
-  // Nomic requires the 'search_document: ' prefix for documents 
-  // (we'll just use it directly for everything here to keep it simple, or 'search_query: ' for queries)
+  if (!env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured for embeddings.");
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${env.GEMINI_API_KEY}`;
   
-  // We specify pooling mean and normalize true as typical for Nomic
-  const output = await embedder(text, {
-    pooling: 'mean',
-    normalize: true,
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "models/text-embedding-004",
+      content: {
+        parts: [{ text }],
+      },
+    }),
   });
 
-  // output.data is a Float32Array, convert to standard number array
-  return Array.from(output.data);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Gemini Embedding API Error:", errorText);
+    throw new Error(`Failed to generate embedding: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const embedding = data?.embedding?.values;
+  
+  if (!embedding || !Array.isArray(embedding)) {
+    throw new Error("Invalid embedding format returned from Gemini API");
+  }
+
+  return embedding;
 }

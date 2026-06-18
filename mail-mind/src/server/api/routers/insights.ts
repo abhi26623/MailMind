@@ -20,7 +20,7 @@ export async function generateAndSaveInsight(input: {
   }
 
   if (!input.subject && !input.snippet && !input.body) {
-     return null;
+    return null;
   }
 
   const prompt = `You are an AI Email Assistant. Classify and analyze the following email.
@@ -52,7 +52,7 @@ Return exactly a JSON object (and nothing else) with the following structure:
     if (!content) return null;
 
     const parsed = JSON.parse(content);
-    
+
     const insight = {
       id: `insight_${input.threadId}`,
       threadId: input.threadId,
