@@ -306,49 +306,57 @@ export default function CalendarPage() {
 
 
 
-        {/* Upcoming Events Section */}
+                {/* Mini Calendar (Static mock) */}
         <div className="p-6 border-b border-slate-100">
-          <h3 className="font-bold text-[13px] text-slate-800 mb-4">Upcoming Events</h3>
-          <div className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold text-slate-500 tracking-wider">12:00 - 13:30</span>
-              <span className="text-sm font-bold text-slate-800">Meet Gabriel at the International Library</span>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-[13px] text-slate-800">June 2026</h3>
+            <div className="flex gap-2">
+              <svg className="w-3 h-3 text-slate-400 hover:text-slate-600 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+              <svg className="w-3 h-3 text-slate-400 hover:text-slate-600 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold text-slate-500 tracking-wider">15:00 - 16:00</span>
-              <span className="text-sm font-bold text-slate-800">Design Sync</span>
-            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-2">
+            <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div><div>Su</div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-700">
+            {/* Week 1 */}
+            <div className="text-slate-300">25</div><div className="text-slate-300">26</div><div className="text-slate-300">27</div><div className="text-slate-300">28</div><div className="text-slate-300">29</div><div className="text-slate-300">30</div><div className="text-slate-300">31</div>
+            {/* Week 2 */}
+            <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div>
+            {/* Week 3 */}
+            <div>8</div><div>9</div><div>10</div><div>11</div><div className="bg-blue-500 text-white rounded-full w-5 h-5 mx-auto flex items-center justify-center shadow-md">12</div><div>13</div><div>14</div>
+            {/* Week 4 */}
+            <div>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div><div>21</div>
           </div>
         </div>
 
-        {/* My Calendars */}
+        {/* Upcoming Events Section (Dynamic) */}
         <div className="p-6 flex-1 overflow-y-auto">
-          <div className="flex justify-between items-center mb-5 cursor-pointer group">
-            <h3 className="font-bold text-[13px] text-slate-800 group-hover:text-blue-600 transition-colors">My Calendars</h3>
-            <svg className="w-4 h-4 text-slate-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-          </div>
+          <h3 className="font-bold text-[13px] text-slate-800 mb-4">Upcoming Events</h3>
           <div className="space-y-4">
-            <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center group-hover:border-slate-400">
-                 <div className="w-2 h-2 rounded-full bg-slate-400 opacity-0 group-hover:opacity-100" />
-              </div>
-              <span className="text-xs text-slate-600 font-bold flex-1">Antonio Larentio</span>
-              <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[9px] font-black flex items-center justify-center">8</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center group-hover:border-slate-400">
-              </div>
-              <span className="text-xs text-slate-600 font-bold flex-1">Tasks</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center group-hover:border-slate-400">
-              </div>
-              <span className="text-xs text-slate-600 font-bold flex-1">Birthdays</span>
-              <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[9px] font-black flex items-center justify-center">6</span>
-            </label>
+            {isLoading ? (
+              <div className="text-xs text-slate-500">Loading events...</div>
+            ) : (!eventsData || eventsData.length === 0) ? (
+              <div className="text-xs text-slate-500">No upcoming events found.</div>
+            ) : (
+              eventsData.slice(0, 5).map((event: any, i: number) => {
+                const startTime = event.start?.dateTime ? new Date(event.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "All day";
+                const endTime = event.end?.dateTime ? new Date(event.end.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+                return (
+                  <div key={event.id || i} className="flex flex-col gap-1 border-l-2 border-blue-400 pl-3">
+                    <span className="text-[10px] font-semibold text-slate-500 tracking-wider">
+                      {startTime}{endTime ? ` - ${endTime}` : ""}
+                    </span>
+                    <span className="text-xs font-bold text-slate-800 leading-tight line-clamp-2">
+                      {event.summary || "Untitled Event"}
+                    </span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
-      </div>
+</div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#F5F6F8]">
