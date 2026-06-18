@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { SignOutButton } from "@/app/_components/auth-buttons";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { useKeyboard } from "@/hooks/useKeyboard";
@@ -165,6 +166,7 @@ export default function InboxPage() {
   const [showCheatsheet, setShowCheatsheet] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const threadIds = useMemo(() => threads.map(t => t.id), [threads]);
   const { data: insights } = api.insights.getInsightsBatch.useQuery(
@@ -279,13 +281,13 @@ export default function InboxPage() {
     } else if (payload.parts) {
       const textPart = payload.parts.find((p: any) => p.mimeType === "text/plain");
       const htmlPart = payload.parts.find((p: any) => p.mimeType === "text/html");
-      const part = textPart || htmlPart; // prefer text, fallback to html
+      const part = htmlPart || textPart; // prefer html, fallback to text
 
       if (part?.body?.data) {
         bodyData = part.body.data;
       } else if (payload.parts[0]?.parts) { // nested parts (multipart/alternative)
-        const subPart = payload.parts[0].parts.find((p: any) => p.mimeType === "text/plain")
-          || payload.parts[0].parts.find((p: any) => p.mimeType === "text/html");
+        const subPart = payload.parts[0].parts.find((p: any) => p.mimeType === "text/html")
+          || payload.parts[0].parts.find((p: any) => p.mimeType === "text/plain");
         if (subPart?.body?.data) bodyData = subPart.body.data;
       }
     }
@@ -408,61 +410,37 @@ export default function InboxPage() {
   };
 
   return (
-    <div className="min-h-screen bg-forest-950 text-cream-100 flex flex-col font-sans relative">
+    <div className="h-screen overflow-hidden bg-[#F5F6F8] text-forest-950 flex flex-col font-sans relative">
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-wheat-500/20 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-[400px] w-[400px] translate-x-1/4 translate-y-1/4 rounded-full bg-emerald-500/10 blur-[100px]" />
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
-            ? "bg-success-light border-emerald-500/20 text-success"
+            ? "bg-white/90 border-emerald-500/20 text-emerald-600 backdrop-blur-md"
             : toast.type === "error"
-              ? "bg-danger-light border-rose-500/20 text-danger"
-              : "bg-wheat-100 border-wheat-500/20 text-wheat-500"
+              ? "bg-white/90 border-rose-500/20 text-rose-600 backdrop-blur-md"
+              : "bg-white/80 border-forest-900/10 text-forest-900 backdrop-blur-md"
           }`}>
           <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
 
       {/* Top Header */}
-      <header className="border-b border-forest-700/80 bg-forest-800/40 backdrop-blur-md sticky top-0 z-40 px-8 py-4 flex justify-between items-center">
+      <header className="bg-white flex-shrink-0 sticky top-0 z-40 px-8 py-3 flex justify-between items-center border-b border-forest-900/5">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 bg-gradient-to-tr from-wheat-500 to-amber-500 rounded-xl flex items-center justify-center font-bold text-cream-100 shadow-lg shadow-wheat-500/20">
+          <div className="w-9 h-9 bg-gradient-to-tr from-blue-500 to-blue-700 rounded-xl flex items-center justify-center font-bold text-white shadow-md">
             M
           </div>
-          <span className="font-extrabold tracking-tight text-xl bg-gradient-to-r from-cream-100 to-cream-200 bg-clip-text text-transparent">
+          <span className="font-extrabold tracking-tight text-xl text-forest-950">
             MailMind
           </span>
         </div>
 
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 mr-2">
-            {/* Gmail Connection Toggle */}
-            <button
-              onClick={handleToggleGmail}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${gmailConnected
-                  ? "bg-success-light border-emerald-500/20 text-success cursor-default"
-                  : "bg-forest-700 hover:bg-forest-600 border-forest-600/50 text-cream-200 hover:text-cream-100"
-                }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? "bg-emerald-400" : "bg-olive-500 animate-pulse"}`} />
-              <span>Gmail</span>
-            </button>
-
-            {/* Calendar Connection Toggle */}
-            <button
-              onClick={handleToggleCalendar}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${calendarConnected
-                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default"
-                  : "bg-slate-800 hover:bg-slate-700 border-slate-700/50 text-slate-300 hover:text-slate-100"
-                }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${calendarConnected ? "bg-emerald-400" : "bg-slate-500 animate-pulse"}`} />
-              <span>Calendar</span>
-            </button>
-          </div>
-
           <Link
             href="/agent"
             id="agent-link"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 border border-wheat-500/30 rounded-xl transition-all text-cream-100 text-xs font-bold shadow-md shadow-wheat-500/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-forest-900 hover:bg-forest-800 border border-transparent rounded-xl transition-all text-cream-100 text-xs font-bold shadow-sm"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -473,7 +451,7 @@ export default function InboxPage() {
           <Link
             href="/settings"
             id="settings-link"
-            className="p-2.5 bg-forest-700 hover:bg-forest-600 border border-forest-600/50 rounded-xl transition-all text-cream-200 hover:text-cream-100"
+            className="p-2.5 hover:bg-white/50 text-forest-600 hover:text-forest-950 border border-transparent rounded-xl transition-all"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -485,7 +463,7 @@ export default function InboxPage() {
               void refetch();
               if (calendarConnected) void refetchCalendar();
             }}
-            className="px-4 py-2 text-xs font-semibold bg-wheat-500 hover:bg-wheat-400 border border-wheat-500/30 rounded-xl transition-all shadow-md shadow-wheat-500/10"
+            className="px-4 py-1.5 text-xs font-semibold bg-white border border-forest-900/10 hover:border-forest-900/20 text-forest-800 rounded-xl transition-all shadow-sm"
           >
             Refresh
           </button>
@@ -493,81 +471,131 @@ export default function InboxPage() {
       </header>
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 grid grid-cols-12 overflow-hidden">
-        {/* Navigation Sidebar & Hotkeys helper */}
-        <div className="col-span-1 border-r border-forest-700/80 bg-forest-900/20 p-4 flex flex-col justify-between items-center text-olive-500">
-          <div className="flex flex-col space-y-6 w-full items-center">
+      <div className="flex-1 flex overflow-hidden relative z-10 h-full">
+        {/* Navigation Sidebar: Icon only, name on hover */}
+        <div className={`${isSidebarOpen ? "w-56" : "w-[72px]"} h-full border-r border-forest-900/10 bg-white py-4 flex flex-col justify-between items-center text-forest-700 flex-shrink-0 transition-all duration-300 overflow-y-auto overflow-x-hidden z-20`}>
+          <div className="w-full flex justify-start px-4 mb-4"><button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-forest-500 hover:bg-forest-50 rounded-lg"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg></button></div><div className="flex flex-col space-y-2 w-full px-3">
             <button
               onClick={() => setIsComposeOpen(true)}
-              title="Compose Email (C)"
-              className="p-3 bg-wheat-500 hover:bg-wheat-400 text-cream-100 rounded-xl transition-all shadow-lg shadow-wheat-500/20"
+              className={`py-3 bg-forest-900 hover:bg-forest-800 text-cream-100 rounded-xl shadow-lg flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} mb-6 transition-all w-full flex-shrink-0`}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+              {isSidebarOpen && <span className="ml-3 font-semibold text-sm whitespace-nowrap">Compose</span>}
             </button>
 
-            <button
-              onClick={() => setShowCheatsheet(true)}
-              title="Keyboard Cheatsheet (?)"
-              className="p-3 bg-forest-700/40 hover:bg-forest-700 text-olive-400 rounded-xl transition-all"
-            >
-              <span className="font-bold text-xs">?</span>
-            </button>
+            {/* Core Folders */}
+            <div className="space-y-1 w-full flex flex-col items-start">
+              <button className={`py-3 bg-wheat-100 text-wheat-700 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Inbox</span>}
+              </button>
+              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Drafts</span>}
+              </button>
+              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Sent</span>}
+              </button>
+              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Archive</span>}
+              </button>
+              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Favorite</span>}
+              </button>
+              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Trash</span>}
+              </button>
+            </div>
+
+            <div className="pt-4 border-t border-forest-900/10 w-full flex flex-col items-start mt-4">
+              {isSidebarOpen && <span className="text-[9px] font-bold uppercase tracking-widest text-forest-400 px-3 mb-2">Categories</span>}
+              <div className="space-y-1 w-full">
+                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm flex-shrink-0" />
+                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Work</span>}
+                </button>
+                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm flex-shrink-0" />
+                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Social</span>}
+                </button>
+                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm flex-shrink-0" />
+                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Events</span>}
+                </button>
+                <button className={`py-3 hover:bg-white/60 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm flex-shrink-0" />
+                  {isSidebarOpen && <span className="ml-4 font-medium text-xs text-forest-700 whitespace-nowrap">Personal</span>}
+                </button>
+              </div>
+            </div>
           </div>
-
-          <div className="flex flex-col space-y-4 w-full items-center text-[10px] text-olive-500 border-t border-forest-700/60 pt-4">
-            <div className="text-center">
-              <kbd className="block bg-forest-700 text-cream-200 px-1 py-0.5 rounded font-mono border border-forest-600">J</kbd>
-              <span>next</span>
-            </div>
-            <div className="text-center">
-              <kbd className="block bg-slate-800 text-slate-300 px-1 py-0.5 rounded font-mono border border-slate-700">K</kbd>
-              <span>prev</span>
-            </div>
+          
+          <div className="w-full px-3 mt-auto mb-4 space-y-2">
+            <button onClick={() => setShowCheatsheet(true)} className={`py-3 text-forest-400 hover:text-forest-700 hover:bg-white/60 rounded-xl transition-all flex items-center w-full ${isSidebarOpen ? "justify-start px-4" : "justify-center"}`} title="Shortcuts (?)">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Shortcuts</span>}
+            </button>
+            <button onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => router.push("/") } })} className={`py-3 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all flex items-center w-full ${isSidebarOpen ? "justify-start px-4" : "justify-center"}`} title="Sign Out">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Sign Out</span>}
+            </button>
           </div>
         </div>
 
         {/* Thread List */}
-        <div className="col-span-3 border-r border-forest-700/80 overflow-y-auto max-h-[calc(100vh-73px)]">
-          <div className="p-4 border-b border-forest-700 flex justify-between items-center">
-            <h2 className="font-bold text-sm text-cream-200">All Threads</h2>
-            <span className="text-xs bg-forest-700/40 px-2 py-0.5 rounded text-olive-400 border border-forest-600/50">
-              {threads.length} total
-            </span>
+        <div className="w-[320px] xl:w-[380px] flex-shrink-0 border-r border-forest-900/10 bg-white h-full overflow-y-auto flex flex-col">
+          <div className="p-4 border-b border-forest-900/10 bg-white sticky top-0 z-10 flex flex-col space-y-3">
+            <div className="flex justify-between items-center">
+              <h2 className="font-bold text-sm text-slate-800">Inbox</h2>
+              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 border border-slate-200 font-medium shadow-sm">
+                {threads.length} total
+              </span>
+            </div>
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Vector Search..." 
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 rounded-lg text-xs outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-sm" 
+              />
+              <svg className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </div>
           </div>
 
           {isLoading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-24 bg-forest-900/60 animate-pulse rounded-xl" />
+                <div key={i} className="h-24 bg-white/50 animate-pulse rounded-xl" />
               ))}
             </div>
           ) : !gmailConnected ? (
-            <div className="p-8 mt-12 flex-1 flex flex-col items-center justify-center text-olive-500 space-y-4 max-w-md mx-auto text-center">
-              <div className="p-4 bg-wheat-100 border border-wheat-500/20 rounded-2xl">
-                <svg className="w-12 h-12 text-wheat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-8 mt-12 flex-1 flex flex-col items-center justify-center text-slate-500 space-y-4 max-w-md mx-auto text-center">
+              <div className="p-4 bg-sky-50 border border-sky-500/20 rounded-2xl shadow-inner">
+                <svg className="w-12 h-12 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-cream-200">Gmail Disconnected</h2>
-                <p className="text-xs text-olive-500 mt-1">Connect your Gmail via Corsair to sync your emails and threads.</p>
+                <h2 className="text-lg font-bold text-slate-800">Gmail Disconnected</h2>
+                <p className="text-xs text-slate-500 mt-1">Connect your Gmail via Corsair to sync your emails and threads.</p>
               </div>
               <button
                 onClick={handleToggleGmail}
-                className="px-5 py-2.5 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 text-xs font-semibold rounded-xl text-forest-950 shadow-lg shadow-wheat-500/20"
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-xs font-semibold rounded-xl text-white shadow-lg shadow-blue-500/30"
               >
                 Connect Gmail
               </button>
             </div>
           ) : error || (data as any)?._error ? (
-            <div className="p-8 text-center text-olive-400">
+            <div className="p-8 text-center text-forest-500">
               <p className="text-red-400 font-medium mb-3">Failed to load threads</p>
               <p className="text-xs">{(data as any)?._error || error?.message}</p>
             </div>
           ) : threads.length === 0 ? (
-            <div className="p-8 text-center text-olive-400">
+            <div className="p-8 text-center text-forest-500">
               <p className="font-medium text-xs">Your inbox is clean</p>
             </div>
           ) : (
@@ -582,37 +610,45 @@ export default function InboxPage() {
                     id={`thread-${thread.id}`}
                     onClick={() => handleSelectThread(thread, index)}
                     className={`p-3.5 rounded-xl cursor-pointer transition-all border ${isActive
-                        ? "bg-wheat-100 border-wheat-500/50 shadow-md shadow-wheat-500/5"
+                        ? "bg-slate-800 text-white shadow-md border-transparent rounded-xl"
                         : isSelected
-                          ? "bg-forest-900/60 border-forest-600"
-                          : "bg-forest-900/20 border-forest-700/40 hover:bg-forest-900/60 hover:border-forest-700"
+                          ? "bg-white/80 border-transparent shadow-sm"
+                          : "bg-transparent border-transparent hover:bg-white/40"
                       }`}
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-bold text-[10px] bg-forest-700 text-wheat-400 px-2 py-0.5 rounded border border-forest-600/60">
-                        {thread.id.substring(0, 8)}
-                      </span>
-                      <div className="flex space-x-1 items-center">
-                        {insights?.find((i: any) => i.threadId === thread.id)?.priority === "urgent" && (
-                          <span className="text-[9px] bg-danger-light text-danger px-1.5 py-0.5 rounded font-bold uppercase tracking-widest border border-rose-500/30">
-                            Urgent
+                    <div className="flex gap-3">
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md ${
+                        isSelected ? "bg-gradient-to-tr from-blue-500 to-indigo-600" : "bg-gradient-to-tr from-sky-400 to-blue-500"
+                      }`}>
+                        {String.fromCharCode(65 + (parseInt(thread.id.substring(0, 8), 16) % 26))}
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className={`font-bold text-xs truncate pr-2 ${isActive ? "text-white" : "text-slate-900"}`}>
+                            {thread.snippet ? thread.snippet.substring(0, 30) + "..." : "Thread " + thread.id.substring(0, 6)}
                           </span>
-                        )}
-                        {insights?.find((i: any) => i.threadId === thread.id)?.priority === "high" && (
-                          <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest border border-amber-500/30">
-                            High
-                          </span>
-                        )}
-                        {isStarred && (
-                          <svg className="w-3.5 h-3.5 text-amber-400 fill-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        )}
+                          <div className="flex space-x-1.5 items-center flex-shrink-0">
+                            {/* Visual Priority Dots */}
+                            {insights?.find((i: any) => i.threadId === thread.id)?.priority === "urgent" && (
+                              <span className={`px-1.5 py-0.5 rounded flex items-center text-[9px] font-bold uppercase tracking-wider shadow-sm border ${isActive ? "bg-rose-500 border-rose-400 text-white" : "bg-rose-100 border-rose-200 text-rose-600"}`}>Urgent</span>
+                            )}
+                            {insights?.find((i: any) => i.threadId === thread.id)?.priority === "high" && (
+                              <span className={`px-1.5 py-0.5 rounded flex items-center text-[9px] font-bold uppercase tracking-wider shadow-sm border ${isActive ? "bg-amber-400 border-amber-300 text-amber-900" : "bg-amber-100 border-amber-200 text-amber-600"}`}>High</span>
+                            )}
+                            {isStarred && (
+                              <svg className="w-3.5 h-3.5 text-amber-400 fill-amber-400 drop-shadow-md" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <p className={`text-xs line-clamp-2 leading-relaxed ${isSelected ? "text-slate-200" : "text-slate-500"}`}>
+                          {thread.snippet || "(No content)"}
+                        </p>
                       </div>
                     </div>
-                    <p className="text-xs text-cream-200 line-clamp-2 leading-relaxed">
-                      {thread.snippet || "(No content)"}
-                    </p>
                   </div>
                 );
               })}
@@ -621,70 +657,73 @@ export default function InboxPage() {
         </div>
 
         {/* Thread Detail / Main Workspace View */}
-        <div className="col-span-5 bg-forest-900/20 overflow-y-auto max-h-[calc(100vh-73px)] p-6">
+        <div className="flex-1 h-full bg-transparent overflow-y-auto p-6 flex flex-col items-center min-w-0">
           {activeThread ? (
-            <div className="space-y-6">
+            <div className="space-y-6 w-full max-w-3xl">
               {/* Toolbar */}
-              <div className="flex items-center justify-between bg-forest-900/60 border border-forest-700 px-4 py-2 rounded-xl backdrop-blur-md">
+              <div className="flex items-center justify-between bg-white/60 border border-forest-900/10 px-4 py-2 rounded-xl backdrop-blur-md sticky top-0 z-20 shadow-sm">
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleArchive(activeThread)}
-                    className="p-2 hover:bg-forest-700 text-olive-400 hover:text-cream-100 rounded-lg transition-all"
-                    title="Archive (E)"
+                    className="group px-3 py-1.5 hover:bg-white text-forest-500 hover:text-forest-900 rounded-lg transition-all flex items-center space-x-2 border border-transparent hover:border-forest-900/10 shadow-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                     </svg>
+                    <span className="hidden lg:inline text-xs font-medium">Archive</span>
+                    <kbd className="hidden sm:inline-block text-[9px] font-bold bg-forest-100 px-1.5 py-0.5 rounded border border-forest-200 text-forest-600 group-hover:text-wheat-500 transition-colors">E</kbd>
                   </button>
                   <button
                     onClick={() => handleDelete(activeThread)}
-                    className="p-2 hover:bg-forest-700 text-olive-400 hover:text-rose-400 rounded-lg transition-all"
-                    title="Delete (#)"
+                    className="group px-3 py-1.5 hover:bg-white text-forest-500 hover:text-rose-600 rounded-lg transition-all flex items-center space-x-2 border border-transparent hover:border-forest-900/10 shadow-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
+                    <span className="hidden lg:inline text-xs font-medium">Delete</span>
+                    <kbd className="hidden sm:inline-block text-[9px] font-bold bg-forest-100 px-1.5 py-0.5 rounded border border-forest-200 text-forest-600 group-hover:text-rose-400 transition-colors">#</kbd>
                   </button>
                   <button
                     onClick={() => handleToggleStar(activeThread)}
-                    className={`p-2 hover:bg-forest-700 rounded-lg transition-all ${isThreadStarred(activeThread) ? "text-amber-400" : "text-olive-400 hover:text-amber-300"}`}
-                    title="Toggle Star (S)"
+                    className={`group px-3 py-1.5 hover:bg-white rounded-lg transition-all flex items-center space-x-2 border border-transparent hover:border-forest-900/10 shadow-sm ${isThreadStarred(activeThread) ? "text-amber-500" : "text-forest-500 hover:text-amber-500"}`}
                   >
                     <svg className="w-4 h-4" fill={isThreadStarred(activeThread) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
+                    <span className="hidden lg:inline text-xs font-medium">Star</span>
+                    <kbd className="hidden sm:inline-block text-[9px] font-bold bg-forest-100 px-1.5 py-0.5 rounded border border-forest-200 text-forest-600 group-hover:text-amber-400 transition-colors">S</kbd>
                   </button>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handleOpenReply}
-                    className="px-3 py-1.5 bg-forest-700 hover:bg-forest-600 text-xs font-semibold rounded-lg transition-all border border-forest-600/50 flex items-center space-x-1"
+                    className="group px-4 py-2 bg-forest-900 hover:bg-forest-800 text-cream-100 text-xs font-bold rounded-lg transition-all shadow-md flex items-center space-x-2"
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                     </svg>
-                    <span>Reply (R)</span>
+                    <span>Reply</span>
+                    <kbd className="hidden sm:inline-block text-[9px] font-bold bg-forest-950/20 text-forest-950 px-1.5 py-0.5 rounded border border-forest-950/20">R</kbd>
                   </button>
                 </div>
               </div>
 
               {/* Thread Content */}
-              <div className="bg-forest-900/60 border border-forest-700 p-6 rounded-2xl shadow-xl backdrop-blur-md">
-                <div className="flex justify-between items-center mb-6 pb-6 border-b border-forest-700">
+              {/* Thread Content Header */}
+              <div className="bg-white border border-forest-900/10 p-6 rounded-2xl shadow-sm mb-4">
+                <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h2 className="text-md font-bold text-cream-100 mb-1">Thread #{activeThread.id}</h2>
-                    <p className="text-[10px] text-olive-400">History ID: {activeThread.historyId}</p>
-                  </div>
-                  <span className="px-2.5 py-0.5 bg-success-light text-success text-[10px] rounded-full border border-emerald-500/20 font-bold uppercase tracking-wider">
-                    Synced Gmail
-                  </span>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold text-olive-400 uppercase tracking-widest">Initial Snippet</h3>
-                  <div className="bg-forest-950/50 border border-forest-700/60 p-4 rounded-xl text-cream-200 text-xs leading-relaxed whitespace-pre-wrap">
-                    {activeThread.snippet || "(No content)"}
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">{activeThread.snippet || "New Message"}</h2>
+                    <div className="flex items-center space-x-3 mt-4">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                        {String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26))}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">Sender Name <span className="text-xs font-normal text-slate-500">&lt;sender@example.com&gt;</span></p>
+                        <p className="text-xs text-slate-500">To: me</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -692,7 +731,7 @@ export default function InboxPage() {
               {/* Messages details */}
               {isLoadingDetails ? (
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-olive-400 uppercase tracking-widest px-2 animate-pulse">
+                  <h3 className="text-xs font-bold text-slate-600 font-medium uppercase tracking-widest px-2 animate-pulse">
                     Loading Messages...
                   </h3>
                   <div className="bg-forest-800/40 border border-forest-700/80 p-8 rounded-xl flex justify-center">
@@ -701,27 +740,48 @@ export default function InboxPage() {
                 </div>
               ) : threadDetails?.messages && threadDetails.messages.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-olive-400 uppercase tracking-widest px-2">
+                  <h3 className="text-xs font-bold text-forest-500 uppercase tracking-widest px-2">
                     Messages ({threadDetails.messages.length})
                   </h3>
                   <div className="space-y-3">
-                    {threadDetails.messages.map((message: any) => {
+                    {threadDetails.messages.map((message: any, idx: number) => {
                       const bodyText = getMessageBody(message.payload);
-                      const isHtml = bodyText.includes("<html") || bodyText.includes("<body") || bodyText.includes("<div");
+                      const isHtml = bodyText.includes("<html") || bodyText.includes("<body") || bodyText.includes("<div") || bodyText.includes("<p>") || bodyText.includes("<table") || bodyText.includes("<!DOCTYPE");
+                      
+                      // Alternate messages left and right to look like a chat bubble flow
+                      const isMe = idx % 2 !== 0; 
 
                       return (
-                        <div key={message.id} className="bg-forest-800/40 border border-forest-700/80 p-4 rounded-xl space-y-3">
-                          <div className="flex justify-between items-center text-[10px] text-olive-500 border-b border-forest-700/40 pb-2">
-                            <span className="font-mono">ID: {message.id}</span>
-                            <span>{new Date(parseInt(message.internalDate)).toLocaleString()}</span>
+                        <div key={message.id} className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
+                          {!isMe && (
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 flex items-center justify-center text-white font-bold text-xs mt-auto mb-1 mr-3 shadow-sm">
+                              {String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26))}
+                            </div>
+                          )}
+                          <div className={`max-w-full lg:max-w-[85%] rounded-2xl p-5 shadow-lg border relative min-w-0 overflow-hidden ${
+                            isMe 
+                              ? "bg-blue-600 text-white border-transparent rounded-br-sm ml-8 shadow-sm" 
+                              : "bg-slate-100 border-transparent rounded-bl-sm mr-8 text-slate-900 shadow-sm"
+                          }`}>
+                            <div className={`flex justify-between items-center text-[9px] font-semibold mb-3 pb-2 border-b ${isMe ? "text-forest-300 border-forest-800" : "text-forest-400 border-forest-100"}`}>
+                              <span className="font-mono opacity-60">ID: {message.id.substring(0,8)}</span>
+                              <span>{new Date(parseInt(message.internalDate)).toLocaleString(undefined, {
+                                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                              })}</span>
+                            </div>
+                            {isHtml ? (
+                              <div
+                                className={`text-sm leading-relaxed overflow-x-auto max-w-full ${isMe ? "text-cream-100" : "text-forest-900"}`}
+                                dangerouslySetInnerHTML={{ __html: bodyText }}
+                              />
+                            ) : (
+                              <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isMe ? "text-cream-100" : "text-forest-900"}`}>{bodyText}</p>
+                            )}
                           </div>
-                          {isHtml ? (
-                            <div
-                              className="text-xs text-cream-200 leading-relaxed overflow-x-auto max-w-full"
-                              dangerouslySetInnerHTML={{ __html: bodyText }}
-                            />
-                          ) : (
-                            <p className="text-xs text-cream-200 leading-relaxed whitespace-pre-wrap">{bodyText}</p>
+                          {isMe && (
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-wheat-500 to-amber-500 flex items-center justify-center text-forest-950 font-bold text-xs mt-auto mb-1 ml-3 shadow-sm">
+                              ME
+                            </div>
                           )}
                         </div>
                       );
@@ -731,24 +791,24 @@ export default function InboxPage() {
               )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-olive-500 min-h-[400px]">
+            <div className="h-full flex flex-col items-center justify-center text-forest-400 min-h-[400px]">
               <svg className="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               <p className="text-xs font-medium">Select a thread or compose a new email</p>
-              <p className="text-[10px] text-olive-500 mt-1">Use J / K to navigate, Enter to open</p>
+              <p className="text-[10px] text-forest-400 mt-1">Use J / K to navigate, Enter to open</p>
             </div>
           )}
         </div>
 
         {/* Sidebar: AI Insights & Calendar */}
-        <div className="col-span-3 border-l border-forest-700/80 bg-forest-900/20 p-4 overflow-y-auto max-h-[calc(100vh-73px)] space-y-6">
+        <div className="hidden xl:flex w-[260px] 2xl:w-[300px] h-full flex-col flex-shrink-0 border-l border-forest-900/10 bg-white/40 backdrop-blur-md p-6 overflow-y-auto space-y-6 z-10">
           
           {/* AI Insights Panel */}
           {activeInsight && (
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-forest-700/80">
-                <h3 className="font-extrabold text-xs tracking-wider uppercase text-olive-400 flex items-center space-x-1">
+                <h3 className="font-extrabold text-xs tracking-wider uppercase text-forest-600 flex items-center space-x-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span>AI Insight</span>
                 </h3>
@@ -761,10 +821,10 @@ export default function InboxPage() {
                 </span>
               </div>
               
-              <div className="p-4 bg-forest-800/40 border border-forest-700 rounded-xl space-y-3">
-                <p className="text-sm font-semibold text-cream-100 leading-snug">{activeInsight.summary}</p>
-                <div className="bg-forest-950/50 p-3 rounded-lg border border-forest-700/60">
-                  <p className="text-xs text-olive-400 italic">"{activeInsight.reason}"</p>
+              <div className="p-4 bg-white/80 border border-forest-900/10 rounded-xl space-y-3 shadow-sm">
+                <p className="text-sm font-semibold text-forest-900 leading-snug">{activeInsight.summary}</p>
+                <div className="bg-forest-50 py-3 rounded-lg border border-forest-900/10">
+                  <p className="text-xs text-forest-600 italic">"{activeInsight.reason}"</p>
                 </div>
                 
                 {activeInsight.suggestedAction === "schedule" && (
@@ -783,8 +843,8 @@ export default function InboxPage() {
 
           <div className="space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-forest-700/80">
-              <h3 className="font-extrabold text-xs tracking-wider uppercase text-olive-400 flex items-center space-x-1">
-                <svg className="w-3.5 h-3.5 text-wheat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h3 className="font-extrabold text-xs tracking-wider uppercase text-forest-600 flex items-center space-x-1">
+                <svg className="w-3.5 h-3.5 text-forest-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>Up Next</span>
@@ -792,18 +852,18 @@ export default function InboxPage() {
               <Link
                 href="/calendar"
                 id="calendar-link"
-                className="text-[10px] font-bold text-wheat-500 hover:text-wheat-400 uppercase tracking-widest flex items-center space-x-1"
+                className="text-[10px] font-bold text-forest-500 hover:text-forest-700 uppercase tracking-widest flex items-center space-x-1"
               >
                 <span>Full Calendar</span>
               </Link>
             </div>
 
             {!calendarConnected ? (
-              <div className="p-4 bg-forest-800/40 border border-forest-700 rounded-xl text-center space-y-2">
-                <p className="text-[11px] text-olive-400">Calendar integration not connected</p>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2">
+                <p className="text-[11px] text-slate-500 font-medium">Calendar integration not connected</p>
                 <button
                   onClick={handleToggleCalendar}
-                  className="px-3 py-1 bg-wheat-500 hover:bg-wheat-400 text-[10px] font-bold rounded-lg text-cream-100"
+                  className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-[10px] font-bold rounded-lg text-white shadow-sm"
                 >
                   Connect Calendar
                 </button>
@@ -824,12 +884,12 @@ export default function InboxPage() {
                   const endTime = endStr ? new Date(endStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
 
                   return (
-                    <div key={event.id} className="p-3 bg-forest-900/60 border border-forest-700/80 rounded-xl hover:border-forest-600/60 transition-all space-y-1 relative overflow-hidden group hover:bg-forest-700/40 cursor-pointer">
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-wheat-400 rounded-l-xl"></div>
+                    <div key={event.id} className="py-3 bg-white border border-forest-900/10 rounded-xl hover:border-forest-900/20 shadow-sm transition-all space-y-1 relative overflow-hidden group hover:bg-white/60 cursor-pointer">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-forest-500 rounded-l-xl"></div>
                       <div className="flex justify-between items-start ml-1">
-                        <h4 className="font-bold text-[11px] text-cream-100 line-clamp-1">{event.summary || "(No Title)"}</h4>
+                        <h4 className="font-bold text-[11px] text-forest-900 line-clamp-1">{event.summary || "(No Title)"}</h4>
                       </div>
-                      <p className="text-[10px] text-wheat-500 font-mono ml-1 mt-0.5">
+                      <p className="text-[10px] text-forest-500 font-mono ml-1 mt-0.5">
                         {dateLabel} • {startTime} {endTime ? `- ${endTime}` : ""}
                       </p>
                       {event.location && (
@@ -852,13 +912,13 @@ export default function InboxPage() {
 
       {/* MODAL: Compose */}
       {isComposeOpen && (
-        <div className="fixed inset-0 z-50 bg-forest-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100">Compose New Email</h3>
+        <div className="fixed inset-0 z-50 bg-forest-900/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-forest-900">Compose New Email</h3>
               <button
                 onClick={() => setIsComposeOpen(false)}
-                className="text-olive-400 hover:text-cream-100 transition-all text-xs"
+                className="text-slate-600 font-medium hover:text-cream-100 transition-all text-xs"
               >
                 x Close
               </button>
@@ -866,38 +926,38 @@ export default function InboxPage() {
 
             <form onSubmit={handleSendCompose} className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">To</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">To</label>
                 <input
                   type="email"
                   value={composeTo}
                   onChange={(e) => setComposeTo(e.target.value)}
                   required
                   placeholder="recipient@example.com"
-                  className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-100 focus:outline-none focus:border-wheat-500"
+                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Subject</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Subject</label>
                 <input
                   type="text"
                   value={composeSubject}
                   onChange={(e) => setComposeSubject(e.target.value)}
                   required
                   placeholder="Subject details"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Message Body</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Message Body</label>
                 <textarea
                   rows={6}
                   value={composeBody}
                   onChange={(e) => setComposeBody(e.target.value)}
                   required
                   placeholder="Write your email here..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
+                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner resize-none"
                 />
               </div>
 
@@ -912,7 +972,7 @@ export default function InboxPage() {
                 <button
                   type="submit"
                   disabled={sendMutation.isPending}
-                  className="px-4 py-2 bg-wheat-500 hover:bg-wheat-400 text-xs font-semibold rounded-xl text-cream-100 shadow-md shadow-wheat-500/10"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-blue-500/20 shadow-md shadow-wheat-500/10"
                 >
                   {sendMutation.isPending ? "Sending..." : "Send Email"}
                 </button>
@@ -924,15 +984,15 @@ export default function InboxPage() {
 
       {/* MODAL: Reply */}
       {isReplyOpen && activeThread && (
-        <div className="fixed inset-0 z-50 bg-forest-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
+        <div className="fixed inset-0 z-50 bg-forest-900/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100">
                 Reply to Thread #{activeThread.id.substring(0, 8)}
               </h3>
               <button
                 onClick={() => setIsReplyOpen(false)}
-                className="text-slate-400 hover:text-slate-200 transition-all text-xs"
+                className="text-slate-400 hover:text-slate-600 transition-all text-xs font-semibold"
               >
                 x Close
               </button>
@@ -940,21 +1000,21 @@ export default function InboxPage() {
 
             <form onSubmit={handleSendReply} className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Subject</label>
-                <div className="w-full bg-forest-950/50 border border-forest-700 rounded-xl px-3 py-2 text-xs text-olive-400">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Subject</label>
+                <div className="w-full bg-forest-950/50 border border-forest-700 rounded-xl px-3 py-2 text-xs text-slate-600 font-medium">
                   Re: {activeThread.snippet.substring(0, 50)}...
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Your Reply</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Your Reply</label>
                 <textarea
                   rows={6}
                   value={replyBody}
                   onChange={(e) => setReplyBody(e.target.value)}
                   required
                   placeholder="Write reply here..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
+                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner resize-none"
                 />
               </div>
 
@@ -981,63 +1041,63 @@ export default function InboxPage() {
 
       {/* MODAL: Cheatsheet */}
       {showCheatsheet && (
-        <div className="fixed inset-0 z-50 bg-forest-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-100 flex items-center space-x-1.5">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 flex items-center space-x-1.5">
                 <span>{"\u2328\uFE0F"} Keyboard Shortcuts</span>
               </h3>
               <button
                 onClick={() => setShowCheatsheet(false)}
-                className="text-slate-400 hover:text-slate-200 transition-all text-xs"
+                className="text-slate-400 hover:text-slate-600 transition-all text-xs font-semibold"
               >
                 x Close
               </button>
             </div>
 
             <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Archive Selected Thread</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">e</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Archive Selected Thread</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">e</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Reply to Thread</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">r</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Reply to Thread</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">r</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Compose New Email</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">c</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Compose New Email</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">c</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Delete / Trash Selected Thread</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">#</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Delete / Trash Selected Thread</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">#</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Toggle Star Status</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">s</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Toggle Star Status</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">s</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Select Next Thread</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">j</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Select Next Thread</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">j</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Select Previous Thread</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">k</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Select Previous Thread</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">k</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Go to Inbox Page</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">gi</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Go to Inbox Page</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">gi</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Go to Calendar Page</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">gc</kbd>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                <span className="text-slate-600 font-medium">Go to Calendar Page</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-mono font-bold shadow-sm">gc</kbd>
               </div>
             </div>
 
             <div className="pt-2 text-center">
               <button
                 onClick={() => setShowCheatsheet(false)}
-                className="w-full py-2 bg-wheat-500 hover:bg-wheat-400 text-xs font-semibold rounded-xl text-cream-100"
+                className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-blue-500/20"
               >
                 Got it
               </button>

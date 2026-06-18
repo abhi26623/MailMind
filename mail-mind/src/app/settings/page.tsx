@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { SignOutButton } from "@/app/_components/auth-buttons";
 import { api } from "@/trpc/react";
 
 export default function SettingsPage() {
@@ -56,34 +57,37 @@ export default function SettingsPage() {
   const isDisconnecting = disconnectMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-forest-950 text-cream-100 flex flex-col items-center justify-center p-6 font-sans">
-      <div className="w-full max-w-xl bg-forest-900/60 border border-forest-700 backdrop-blur-xl rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+    <div className="min-h-screen bg-[#F5F6F8] text-slate-800 flex flex-col items-center justify-center p-6 font-sans">
+      <div className="w-full max-w-xl bg-white border border-forest-900/10 rounded-2xl p-8 shadow-xl relative overflow-hidden">
         {/* Decorative Gradients */}
-        <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-wheat-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl" />
 
         <div className="relative z-10">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-wheat-500 to-amber-500 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
               Integrations Settings
             </h1>
-            <Link
-              href="/inbox"
-              id="back-to-inbox"
-              className="text-xs font-semibold px-4 py-2 bg-forest-800 hover:bg-forest-700 border border-forest-700/50 rounded-lg transition-all"
-            >
-              Go to Inbox
-            </Link>
+            <div className="flex items-center space-x-2">
+              <Link
+                href="/inbox"
+                id="back-to-inbox"
+                className="text-xs font-semibold px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm text-slate-700 rounded-lg transition-all"
+              >
+                Go to Inbox
+              </Link>
+              <SignOutButton className="px-4 py-2 text-xs font-semibold bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm text-rose-600 rounded-lg transition-all" />
+            </div>
           </div>
 
-          <p className="text-olive-400 text-sm mb-6 leading-relaxed">
+          <p className="text-slate-500 text-sm mb-6 leading-relaxed">
             Manage your connection to Google Services. MailMind uses Corsair to securely sync your emails and calendar events.
           </p>
 
           {isLoading ? (
             <div className="space-y-4 py-6">
-              <div className="h-16 bg-forest-800/40 animate-pulse rounded-xl" />
-              <div className="h-16 bg-forest-800/40 animate-pulse rounded-xl" />
+              <div className="h-16 bg-slate-100 animate-pulse rounded-xl" />
+              <div className="h-16 bg-slate-100 animate-pulse rounded-xl" />
             </div>
           ) : (
             <div className="space-y-4">
@@ -96,8 +100,8 @@ export default function SettingsPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-cream-200 truncate">Gmail Integration</h3>
-                    <p className="text-xs text-olive-400 mt-0.5">
+                    <h3 className="font-bold text-slate-800 truncate">Gmail Integration</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
                       {isDisconnecting && gmailActive
                         ? "Disconnecting..."
                         : gmailActive
@@ -134,8 +138,8 @@ export default function SettingsPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-cream-200 truncate">Google Calendar</h3>
-                    <p className="text-xs text-olive-400 mt-0.5">
+                    <h3 className="font-bold text-slate-800 truncate">Google Calendar</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
                       {isDisconnecting && calendarActive
                         ? "Disconnecting..."
                         : calendarActive
@@ -181,7 +185,7 @@ export default function SettingsPage() {
             <button
               id="refresh-status"
               onClick={() => void refetch()}
-              className="px-5 py-2.5 bg-forest-800 hover:bg-forest-700 border border-forest-700/50 text-cream-200 font-medium text-sm rounded-xl transition-all"
+              className="px-5 py-2.5 bg-white hover:bg-slate-50 border border-forest-900/10 shadow-sm text-forest-800 text-slate-800 font-medium text-sm rounded-xl transition-all"
             >
               Refresh Status
             </button>

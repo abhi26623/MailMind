@@ -3,6 +3,8 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { authClient } from "@/server/better-auth/client";
+import { SignOutButton } from "@/app/_components/auth-buttons";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { useKeyboard } from "@/hooks/useKeyboard";
@@ -18,6 +20,7 @@ const formatDate = (d: Date) => {
 
 export default function CalendarPage() {
   const router = useRouter();
+  const { data: session } = authClient.useSession();
 
   // Connection Status Check
   const { data: status } = api.email.getConnectionStatus.useQuery();
@@ -257,7 +260,7 @@ export default function CalendarPage() {
       case "unclear":
         return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-wheat-100 text-wheat-500">Needs review</span>;
       case "pending":
-        return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-wheat-100 text-olive-400">Pending</span>;
+        return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-wheat-100 text-slate-600 font-medium">Pending</span>;
       default:
         return <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-forest-700 text-cream-300">{s}</span>;
     }
@@ -268,395 +271,344 @@ export default function CalendarPage() {
   // ═════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="min-h-screen bg-forest-950 text-cream-100 flex flex-col font-sans relative">
-      {/* ── Toast Notification ─────────────────────────────────────────── */}
+    <div className="h-screen overflow-hidden bg-[#F5F6F8] text-slate-800 flex font-sans relative">
+      {/* Toast Notification */}
       {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${
-            toast.type === "success"
-              ? "bg-success-light border-avail/30 text-avail"
-              : "bg-danger-light border-danger/30 text-danger"
-          }`}
-        >
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
+            ? "bg-white/90 border-emerald-500/20 text-emerald-600 backdrop-blur-md"
+            : toast.type === "error"
+              ? "bg-white/90 border-rose-500/20 text-rose-600 backdrop-blur-md"
+              : "bg-white/80 border-slate-200 text-slate-800 backdrop-blur-md"
+          }`}>
           <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
 
-      {/* ── Top Header ─────────────────────────────────────────────────── */}
-      <header className="border-b border-forest-700 bg-forest-900/60 backdrop-blur-md sticky top-0 z-40 px-8 py-4 flex justify-between items-center">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 bg-gradient-to-tr from-wheat-500 to-amber-500 rounded-xl flex items-center justify-center font-bold text-forest-950 shadow-lg shadow-wheat-500/20">
-            M
+      {/* Left Sidebar (Light Mode) */}
+      <div className="w-[280px] flex-shrink-0 border-r border-slate-200/60 bg-white flex flex-col h-full z-20">
+        {/* Profile */}
+        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0 uppercase">
+            {session?.user?.name?.charAt(0) || "M"}
           </div>
-          <span className="font-extrabold tracking-tight text-xl bg-gradient-to-r from-cream-100 to-cream-300 bg-clip-text text-transparent">
-            MailMind Calendar
-          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-slate-800 truncate">{session?.user?.name || "MailMind User"}</div>
+            <div className="text-[10px] text-slate-500 font-medium truncate">MailMind Pro</div>
+          </div>
+          <button 
+            onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => router.push("/") } })}
+            className="ml-auto w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-600 transition-colors cursor-pointer border border-rose-100"
+            title="Sign Out"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          </button>
         </div>
 
-        <div className="flex items-center space-x-3">
-          {/* Day / Week toggle */}
-          <div className="flex items-center bg-forest-900 border border-forest-700 rounded-xl p-1">
-            <button
-              onClick={() => setCalendarView("day")}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                calendarView === "day"
-                  ? "bg-gradient-to-r from-wheat-500 to-amber-500 text-forest-950"
-                  : "text-olive-400 hover:text-cream-200"
-              }`}
-            >
-              Day
-            </button>
-            <button
-              onClick={() => setCalendarView("week")}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                calendarView === "week"
-                  ? "bg-gradient-to-r from-wheat-500 to-amber-500 text-forest-950"
-                  : "text-olive-400 hover:text-cream-200"
-              }`}
-            >
-              Week
-            </button>
-          </div>
 
-          {/* ← Week navigation → */}
-          <div className="flex items-center gap-1 bg-forest-900 border border-forest-700 rounded-xl p-1">
-            <button
-              onClick={() => setWeekOffset(o => o - 1)}
-              className="px-2.5 py-1 text-xs font-bold text-olive-400 hover:text-cream-100 hover:bg-forest-700 rounded-lg transition-all"
-              title="Previous week"
-            >
-              ←
-            </button>
-            <button
-              onClick={() => setWeekOffset(0)}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                weekOffset === 0
-                  ? "bg-gradient-to-r from-wheat-500 to-amber-500 text-forest-950"
-                  : "text-olive-400 hover:text-cream-100 hover:bg-forest-700"
-              }`}
-              title="Go to today"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => setWeekOffset(o => o + 1)}
-              className="px-2.5 py-1 text-xs font-bold text-olive-400 hover:text-cream-100 hover:bg-forest-700 rounded-lg transition-all"
-              title="Next week"
-            >
-              →
-            </button>
-          </div>
 
-          {/* Legend */}
-          <div className="hidden md:flex items-center space-x-3 text-[10px] text-olive-500 border-l border-forest-700 pl-3">
-            <span className="flex items-center space-x-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-r from-wheat-500 to-amber-500" />
-              <span>Events</span>
-            </span>
-          </div>
-
-          {/* Create invite */}
-          <button
-            onClick={() => setIsInviteOpen(true)}
-            className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 border border-wheat-500/30 rounded-xl transition-all shadow-md shadow-wheat-500/10 text-forest-950 flex items-center space-x-1"
-          >
-            <span>+ Create Invite</span>
-          </button>
-
-          {/* Refresh */}
-          <button
-            onClick={() => void refetch()}
-            className="px-4 py-2 text-xs font-semibold bg-forest-800 hover:bg-forest-700 border border-forest-600 rounded-xl transition-all text-cream-300"
-          >
-            Refresh
-          </button>
-
-          {/* Back to Inbox */}
-          <Link
-            href="/inbox"
-            className="px-4 py-2 text-xs font-semibold bg-forest-800 hover:bg-forest-700 border border-forest-600 rounded-xl transition-all text-cream-300"
-          >
-            Back to Inbox (GI)
-          </Link>
-        </div>
-      </header>
-
-      {/* ── Calendar View Layout ───────────────────────────────────────── */}
-      <div className="flex-1 grid grid-cols-12 overflow-hidden p-6 gap-6">
-        {!status?.googlecalendar?.connected ? (
-          /* ── Not connected state ─────────────────────────────────────── */
-          <div className="col-span-12 flex-1 flex flex-col items-center justify-center text-olive-500 space-y-4 max-w-md mx-auto text-center">
-            <div className="p-4 bg-wheat-100 border border-wheat-500/20 rounded-2xl">
-              <svg className="w-12 h-12 text-wheat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-cream-200">Google Calendar Disconnected</h2>
-              <p className="text-xs text-olive-500 mt-1">Connect your Google Calendar via Corsair to sync your events and schedule meetings.</p>
-            </div>
-            <button
-              onClick={handleConnectCalendar}
-              className="px-5 py-2.5 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 text-xs font-semibold rounded-xl text-forest-950 shadow-lg shadow-wheat-500/20"
-            >
-              Connect Google Calendar
-            </button>
-          </div>
-        ) : (
-          /* ── Calendar grid ───────────────────────────────────────────── */
-          <div className="col-span-9 flex flex-col bg-forest-900/40 border border-forest-700 rounded-2xl overflow-hidden backdrop-blur-md shadow-2xl">
-            {/* Header: Days of the week */}
-            <div className="grid grid-cols-8 border-b border-forest-700 bg-forest-900/60 py-3 text-center">
-              {/* Time Column Header */}
-              <div className="text-[10px] uppercase font-bold text-olive-500 flex items-center justify-center border-r border-forest-700/40">
-                Time (IST)
-              </div>
-
-              {currentDays.map((day, idx) => {
-                const isToday = day.toDateString() === new Date().toDateString();
-                return (
-                  <div key={idx} className="flex flex-col items-center justify-center">
-                    <span className="text-[10px] uppercase font-bold text-olive-500">
-                      {day.toLocaleDateString(undefined, { weekday: "short" })}
-                    </span>
-                    <span
-                      className={`text-md font-extrabold mt-0.5 w-7 h-7 flex items-center justify-center rounded-full ${
-                        isToday
-                          ? "bg-gradient-to-r from-wheat-500 to-amber-500 text-forest-950 shadow-md shadow-wheat-500/20"
-                          : "text-cream-300"
-                      }`}
-                    >
-                      {day.getDate()}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Grid Body */}
-            <div className="flex-1 overflow-y-auto min-h-0 flex relative">
-              <div className={`w-full grid ${calendarView === "week" ? "grid-cols-8" : "grid-cols-2"} relative select-none`}>
-                {/* Time Slot labels column */}
-                <div className="border-r border-forest-700/60 bg-forest-950/20 text-olive-500">
-                  {workHours.map((hour) => (
-                    <div key={hour} className="h-20 border-b border-forest-700/30 flex items-start justify-end pr-3 pt-1 text-[10px] font-mono">
-                      {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
-                    </div>
-                  ))}
+        {/* Upcoming Meeting Card */}
+        <div className="p-6 border-b border-slate-100">
+          <div className="bg-white rounded-3xl p-5 text-slate-800 relative overflow-hidden shadow-sm border border-slate-200">
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-2">
+                <div className="text-[10px] font-semibold text-slate-500 tracking-wider">
+                  12:00 - 13:30
                 </div>
-
-                {/* Columns for Days */}
-                {currentDays.map((day, dayIdx) => (
-                  <div key={dayIdx} className="relative border-r border-forest-700/40 min-h-[1040px]">
-                    {/* Hour slots interactive click area */}
-                    {workHours.slice(0, -1).map((hour) => {
-                      // Simplified cell block
-                      return (
-                        <div
-                          key={hour}
-                          onClick={() => handleSlotClick(day, hour)}
-                          className="h-20 border-b border-forest-700/25 transition-all cursor-pointer relative group hover:bg-wheat-50"
-                          title="Click to schedule invite"
-                        >
-                          <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[10px] font-bold pointer-events-none text-wheat-500">
-                            + Book Slot
-                          </span>
-                        </div>
-                      );
-                    })}
-
-                    {/* ── Calendar events (z-10) ───────────────────────── */}
-                    {groupedEvents[day.getDay()]?.map((event: any) => {
-                      const startStr = event.start?.dateTime || event.start?.date;
-                      const endStr = event.end?.dateTime || event.end?.date;
-                      const start = new Date(startStr);
-                      const end = new Date(endStr);
-                      const timeString = `${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - ${end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-
-                      return (
-                        <div
-                          key={event.id}
-                          style={getEventStyle(event)}
-                          className="absolute left-1 right-1 p-2 bg-gradient-to-tr from-wheat-500/80 to-amber-500/80 hover:from-wheat-400 hover:to-amber-400 border border-wheat-500/30 rounded-lg shadow-lg overflow-hidden flex flex-col justify-between transition-all cursor-pointer z-10 text-left group"
-                          title={`${event.summary || "(No Title)"}\n${timeString}\n${event.description || ""}`}
-                        >
-                          {/* Delete button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEventToDelete(event);
-                            }}
-                            className="absolute top-1 right-1 w-4 h-4 rounded-full bg-forest-950/60 hover:bg-danger text-cream-100 text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
-                            title="Delete event"
-                          >
-                            ×
-                          </button>
-                          <div className="overflow-hidden">
-                            <h4 className="font-bold text-[10px] text-forest-950 leading-tight truncate">
-                              {event.summary || "(No Title)"}
-                            </h4>
-                            {event.location && (
-                              <p className="text-[8px] text-forest-800 font-medium truncate mt-0.5">
-                                📍 {event.location}
-                              </p>
-                            )}
-                          </div>
-                          <span className="text-[8px] font-mono text-forest-900 mt-1 select-none">
-                            {timeString}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                <div className="flex items-center gap-1 text-[10px] bg-purple-50 px-2 py-0.5 rounded-full backdrop-blur-sm border border-purple-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  <span className="font-semibold text-purple-700">14 min</span>
+                </div>
+              </div>
+              <h4 className="font-bold text-[15px] leading-snug mb-5 text-slate-800">Meet Gabriel at the International Library</h4>
+              <div className="flex gap-3">
+                <button className="flex-1 py-2 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">Later</button>
+                <button className="flex-1 py-2 rounded-xl bg-purple-500 text-[11px] font-bold text-white hover:bg-purple-600 transition-colors shadow-sm">Details</button>
               </div>
             </div>
+
           </div>
-        )}
+        </div>
 
-        {/* ── Sidebar ──────────────────────────────────────────────────── */}
-        {status?.googlecalendar?.connected && (
-          <div className="col-span-3 flex flex-col bg-forest-900/40 border border-forest-700 rounded-2xl overflow-y-auto backdrop-blur-md shadow-2xl p-4 space-y-4">
-            {/* Upcoming Meetings */}
-            <h3 className="font-extrabold text-xs tracking-wider uppercase text-olive-400 flex items-center space-x-1 pb-2 border-b border-forest-700">
-              <svg className="w-4 h-4 text-wheat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Upcoming Meetings</span>
-            </h3>
-
-            {upcomingMeetings.length === 0 ? (
-              <div className="text-center py-6 text-olive-500 text-xs">No upcoming meetings.</div>
-            ) : (
-              <div className="space-y-3">
-                {upcomingMeetings.map((event: any) => {
-                  const startStr = event.start?.dateTime || event.start?.date;
-                  const start = new Date(startStr);
-                  return (
-                    <div key={event.id} className="p-3 bg-forest-950 border border-forest-700/60 rounded-xl space-y-1 relative overflow-hidden group">
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-wheat-500" />
-                      <h4 className="font-bold text-xs text-cream-200 line-clamp-1 ml-1">{event.summary || "(No Title)"}</h4>
-                      <p className="text-[10px] text-wheat-400 font-mono ml-1">
-                        {start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} •{" "}
-                        {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                      {event.location && (
-                        <p className="text-[9px] text-olive-500 truncate ml-1 pt-1 flex items-center">
-                          <span className="mr-1">📍</span> {event.location}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+        {/* My Calendars */}
+        <div className="p-6 flex-1 overflow-y-auto">
+          <div className="flex justify-between items-center mb-5 cursor-pointer group">
+            <h3 className="font-bold text-[13px] text-slate-800 group-hover:text-blue-600 transition-colors">My Calendars</h3>
+            <svg className="w-4 h-4 text-slate-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+          </div>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center group-hover:border-slate-400">
+                 <div className="w-2 h-2 rounded-full bg-slate-400 opacity-0 group-hover:opacity-100" />
               </div>
-            )}
-
-
+              <span className="text-xs text-slate-600 font-bold flex-1">Antonio Larentio</span>
+              <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[9px] font-black flex items-center justify-center">8</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center group-hover:border-slate-400">
+              </div>
+              <span className="text-xs text-slate-600 font-bold flex-1">Tasks</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center group-hover:border-slate-400">
+              </div>
+              <span className="text-xs text-slate-600 font-bold flex-1">Birthdays</span>
+              <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[9px] font-black flex items-center justify-center">6</span>
+            </label>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL: Invite Creator
-          ═══════════════════════════════════════════════════════════════════ */}
-      {isInviteOpen && (
-        <div className="fixed inset-0 z-50 bg-forest-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-200">
-                Create New Calendar Invite
-              </h3>
-              <button
-                onClick={() => setIsInviteOpen(false)}
-                className="text-olive-400 hover:text-cream-200 transition-all text-xs"
-              >
-                × Close
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#F5F6F8]">
+        {/* Top Navbar */}
+        <header className="bg-white px-8 py-6 flex justify-between items-center z-10 shrink-0 border-b border-slate-100 shadow-sm shadow-slate-100">
+          <h1 className="text-2xl font-medium text-slate-800 tracking-tight">
+            {currentDays[0] && currentDays[0].toLocaleString('default', { month: 'long', year: 'numeric' })}
+          </h1>
+
+          <div className="flex items-center gap-6">
+            {/* View Toggle */}
+            <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+              <button onClick={() => setCalendarView("month")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "month" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Month</button>
+              <button onClick={() => setCalendarView("week")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "week" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Week</button>
+              <button onClick={() => setCalendarView("day")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "day" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Day</button>
+            </div>
+
+            {/* Navigation Arrows & Today */}
+            <div className="flex items-center gap-3">
+              <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                <button onClick={() => setWeekOffset(o => o - 1)} className="w-10 h-8 rounded-xl bg-transparent flex items-center justify-center text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-800 transition-all">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button onClick={() => setWeekOffset(o => o + 1)} className="w-10 h-8 rounded-xl bg-transparent flex items-center justify-center text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-800 transition-all">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </div>
+              <button onClick={() => setWeekOffset(0)} className="px-6 py-2.5 rounded-2xl bg-slate-50 border border-slate-100 text-[13px] font-bold text-slate-700 hover:bg-white hover:shadow-sm transition-all">
+                Today
               </button>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="space-y-3">
+            {/* App Nav Buttons */}
+            <div className="flex items-center gap-2 ml-2 pl-6 border-l border-slate-200">
+              <Link href="/inbox" className="px-5 py-2.5 text-[13px] font-bold bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl transition-all text-slate-700 shadow-sm flex items-center gap-2">
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                Inbox
+              </Link>
+              <Link href="/agent" className="px-5 py-2.5 text-[13px] font-bold bg-slate-900 hover:bg-slate-800 border border-transparent rounded-2xl transition-all text-white shadow-md shadow-slate-900/20 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                Agent
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Days Header */}
+        <div className="px-8 pt-6 pb-2 z-10 shrink-0 bg-white border-b border-slate-100">
+          <div className="flex">
+            <div className="w-20 shrink-0 flex items-center justify-center border-r border-slate-100/50">
+              <button onClick={() => setIsInviteOpen(true)} className="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center transition-colors shadow-sm">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              </button>
+            </div>
+            {currentDays.map((day, idx) => {
+              const isToday = day.toDateString() === new Date().toDateString();
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center justify-center py-2 relative">
+                  {isToday && <div className="absolute inset-0 bg-slate-800 rounded-2xl shadow-lg -top-2 -bottom-2 z-0 transform scale-[1.05]" />}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <span className={`text-[12px] font-bold tracking-wide mb-1 ${isToday ? 'text-slate-300' : 'text-slate-500'}`}>
+                      {day.toLocaleDateString(undefined, { weekday: "long" })}
+                    </span>
+                    <span className={`text-2xl font-bold tracking-tight ${isToday ? 'text-white' : 'text-slate-800'}`}>
+                      {day.getDate()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Grid Body */}
+        <div className="flex-1 overflow-y-auto relative custom-scrollbar bg-white">
+          {!status?.googlecalendar?.connected ? (
+            /* ── Not connected state ─────────────────────────────────────── */
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 max-w-md mx-auto text-center bg-slate-50/50 rounded-3xl m-8 border border-slate-100">
+              <div className="p-5 bg-white border border-slate-200 rounded-3xl shadow-xl shadow-slate-200/50">
+                <svg className="w-12 h-12 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Event Title</label>
+                <h2 className="text-xl font-bold text-slate-800">No Calendar Connected</h2>
+                <p className="text-sm text-slate-500 mt-1 px-4">Connect your Google Calendar via Corsair to sync your events and schedule meetings.</p>
+              </div>
+              <button
+                onClick={handleConnectCalendar}
+                className="px-8 py-3.5 mt-2 bg-slate-900 hover:bg-slate-800 text-sm font-bold rounded-2xl text-white shadow-xl shadow-slate-900/20 transition-all hover:-translate-y-0.5"
+              >
+                Connect Calendar
+              </button>
+            </div>
+          ) : (
+            <div className={`w-full grid ${calendarView === "week" ? "grid-cols-8" : "grid-cols-2"} relative min-h-[1200px]`}>
+              {/* Time Slot labels column */}
+              <div className="text-slate-400 bg-white">
+                {workHours.map((hour) => (
+                  <div key={hour} className="h-28 border-b border-slate-100/60 flex items-start justify-end pr-5 pt-3 text-[12px] font-bold text-slate-400">
+                    {hour === 12 ? "12 pm" : hour > 12 ? `${hour - 12} pm` : `${hour} am`}
+                  </div>
+                ))}
+              </div>
+
+              {/* Columns for Days */}
+              {currentDays.map((day, dayIdx) => (
+                <div key={dayIdx} className="relative border-l border-slate-100/60 bg-white">
+                  {workHours.map((hour) => (
+                    <div
+                      key={hour}
+                      onClick={() => handleSlotClick(day, hour)}
+                      className="h-28 border-b border-slate-100/60 hover:bg-slate-50/50 cursor-pointer transition-colors relative group"
+                    >
+                      <div className="absolute inset-2 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Render events for this day */}
+                  {groupedEvents[day.getDay()]?.map((event: any, i: number) => {
+                    const style = getEventStyle(event);
+                    if (style.display === "none") return null;
+                    
+                    const pastelColors = [
+                      "bg-[#bde8fb] text-[#1c6499]", // light blue
+                      "bg-[#b5f4c4] text-[#1e7a36]", // light green
+                      "bg-[#d0c6ff] text-[#48339f]", // light purple
+                      "bg-[#ffe599] text-[#93660a]", // light yellow
+                      "bg-[#ffb3d9] text-[#9c185e]"  // light pink
+                    ];
+                    const colorClass = pastelColors[i % pastelColors.length];
+
+                    return (
+                      <div
+                        key={event.id}
+                        className={`absolute left-2 right-2 rounded-[20px] p-4 shadow-sm overflow-hidden flex flex-col ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer`}
+                        style={{ top: style.top, height: style.height }}
+                        title={event.summary}
+                      >
+                        <h4 className="font-bold text-[13px] leading-tight mb-1">{event.summary || "(No Title)"}</h4>
+                        <div className="text-[11px] opacity-70 font-semibold mb-2">
+                          {new Date(event.start.dateTime || event.start.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
+                          {new Date(event.end.dateTime || event.end.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        {/* Fake avatars for flavor */}
+                        <div className="mt-auto flex -space-x-2">
+                          <div className="w-6 h-6 rounded-full bg-black/10 border-2 border-white/40 flex items-center justify-center text-[9px] font-black uppercase shadow-sm">JD</div>
+                          <div className="w-6 h-6 rounded-full bg-black/10 border-2 border-white/40 flex items-center justify-center text-[9px] font-black uppercase shadow-sm">AL</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MODAL: Create Event
+          ═══════════════════════════════════════════════════════════════════ */}
+      {isInviteOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl animate-scale-up border border-slate-100">
+            <div className="flex justify-between items-center mb-6">
+              <input
+                type="text"
+                value={newSummary}
+                onChange={(e) => setNewSummary(e.target.value)}
+                placeholder="Meet with Jonson Rider |"
+                required
+                className="w-full bg-transparent text-xl font-bold text-slate-800 focus:outline-none placeholder:text-slate-300"
+              />
+            </div>
+
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div className="bg-slate-50 rounded-2xl p-4 flex items-center gap-4 border border-slate-100/50">
+                <svg className="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 <input
-                  type="text"
-                  value={newSummary}
-                  onChange={(e) => setNewSummary(e.target.value)}
+                  type="datetime-local"
+                  value={newStart}
+                  onChange={(e) => setNewStart(e.target.value)}
                   required
-                  placeholder="Meeting / Slot Sync"
-                  className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-200 focus:outline-none focus:border-wheat-500 placeholder:text-olive-600"
+                  className="w-full bg-transparent text-sm font-semibold text-slate-700 focus:outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Start Time</label>
+              <div className="flex items-center gap-4 bg-slate-50 rounded-2xl p-4 border border-slate-100/50">
+                <svg className="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="flex items-center gap-2 w-full">
                   <input
-                    type="datetime-local"
-                    value={newStart}
-                    onChange={(e) => setNewStart(e.target.value)}
-                    required
-                    className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-200 focus:outline-none focus:border-wheat-500"
+                    type="time"
+                    value={newStart.slice(11, 16)}
+                    disabled
+                    className="w-20 bg-transparent text-sm font-semibold text-slate-700 focus:outline-none"
                   />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">End Time</label>
+                  <span className="text-slate-400 font-bold">~</span>
                   <input
-                    type="datetime-local"
-                    value={newEnd}
-                    onChange={(e) => setNewEnd(e.target.value)}
+                    type="time"
+                    value={newEnd.slice(11, 16)}
+                    onChange={(e) => {
+                      const datePart = newEnd.slice(0, 11);
+                      setNewEnd(`${datePart}${e.target.value}`);
+                    }}
                     required
-                    className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-200 focus:outline-none focus:border-wheat-500"
+                    className="w-20 bg-transparent text-sm font-semibold text-slate-700 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Location</label>
+              <div className="bg-slate-50 rounded-2xl p-4 flex items-center gap-4 border border-slate-100/50">
+                <svg className="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 <input
                   type="text"
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
-                  placeholder="Google Meet / Meeting Room / Remote"
-                  className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-200 focus:outline-none focus:border-wheat-500 placeholder:text-olive-600"
+                  placeholder="Park Lane Office"
+                  className="w-full bg-transparent text-sm font-semibold text-slate-700 focus:outline-none placeholder:text-slate-400"
                 />
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Attendees (Comma Separated)</label>
-                <input
-                  type="text"
-                  value={newAttendees}
-                  onChange={(e) => setNewAttendees(e.target.value)}
-                  placeholder="guest1@example.com, guest2@example.com"
-                  className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-200 focus:outline-none focus:border-wheat-500 placeholder:text-olive-600"
-                />
+              {/* Tags (static mock like the image) */}
+              <div className="flex gap-2 pt-2 pb-4">
+                <span className="bg-purple-100 text-purple-700 px-3 py-1.5 rounded-xl text-xs font-bold">Design</span>
+                <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-xl text-xs font-bold">Personal project</span>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-olive-400 mb-1">Description</label>
-                <textarea
-                  rows={3}
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Invite description..."
-                  className="w-full bg-forest-950 border border-forest-700 rounded-xl px-3 py-2 text-xs text-cream-200 focus:outline-none focus:border-wheat-500 resize-none placeholder:text-olive-600"
-                />
+              <div className="flex justify-between items-center pt-2">
+                <div className="flex -space-x-2">
+                  <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold">JS</div>
+                  <div className="w-8 h-8 rounded-full bg-slate-300 border-2 border-white flex items-center justify-center text-[10px] font-bold">AL</div>
+                  <div className="w-8 h-8 rounded-full bg-white border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-400 hover:text-slate-600 cursor-pointer transition-colors">+</div>
+                </div>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsInviteOpen(false)}
-                  className="px-4 py-2 bg-forest-800 hover:bg-forest-700 text-xs font-semibold rounded-xl text-cream-300 border border-forest-600"
-                >
-                  Cancel
-                </button>
+              <div className="pt-4 flex gap-2">
                 <button
                   type="submit"
                   disabled={createEventMutation.isPending}
-                  className="px-4 py-2 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 text-xs font-semibold rounded-xl text-forest-950 shadow-md shadow-wheat-500/10"
+                  className="flex-1 py-4 bg-[#1c1c1e] hover:bg-black text-sm font-bold rounded-2xl text-white shadow-xl shadow-slate-900/20 transition-all flex items-center justify-center"
                 >
-                  {createEventMutation.isPending ? "Creating..." : "Create Event"}
+                  {createEventMutation.isPending ? "Creating..." : "Add Event"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsInviteOpen(false)}
+                  className="w-14 shrink-0 bg-[#1c1c1e] hover:bg-black text-white rounded-2xl flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             </form>
@@ -664,88 +616,41 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL: Delete Event Confirmation
-          ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: Delete Event */}
       {eventToDelete && (
-        <div className="fixed inset-0 z-50 bg-forest-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-danger">
-                Cancel Meeting
-              </h3>
-              <button
-                onClick={() => setEventToDelete(null)}
-                className="text-olive-400 hover:text-cream-200 transition-all text-xs"
-              >
-                × Close
-              </button>
-            </div>
-
-            <p className="text-xs text-cream-300 leading-relaxed">
-              Cancel meeting <span className="font-bold text-cream-100">&lsquo;{eventToDelete.summary || "(No Title)"}&rsquo;</span>?
-              All attendees will be notified automatically.
+        <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-100 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 animate-scale-up">
+            <h3 className="font-bold text-lg text-slate-800 tracking-tight">Cancel Meeting?</h3>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Cancel meeting <span className="font-bold text-slate-800">&lsquo;{eventToDelete.summary || "(No Title)"}&rsquo;</span>? All attendees will be notified.
             </p>
-
-            <div className="flex justify-end space-x-2 pt-2">
-              <button
-                onClick={() => setEventToDelete(null)}
-                className="px-4 py-2 bg-forest-800 hover:bg-forest-700 text-xs font-semibold rounded-xl text-cream-300 border border-forest-600"
-              >
-                Keep Event
-              </button>
-              <button
-                onClick={() => deleteEventMutation.mutate({ eventId: eventToDelete.id })}
-                disabled={deleteEventMutation.isPending}
-                className="px-4 py-2 bg-danger hover:bg-danger/80 text-xs font-semibold rounded-xl text-cream-100 shadow-md"
-              >
-                {deleteEventMutation.isPending ? "Deleting..." : "Yes, Cancel Meeting"}
-              </button>
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setEventToDelete(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-sm font-bold rounded-xl text-slate-600 transition-colors">Keep</button>
+              <button onClick={() => deleteEventMutation.mutate({ eventId: eventToDelete.id })} disabled={deleteEventMutation.isPending} className="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-sm font-bold rounded-xl text-white shadow-md shadow-rose-600/20 transition-all">Cancel It</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL: Cheatsheet
-          ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: Cheatsheet */}
       {showCheatsheet && (
-        <div className="fixed inset-0 z-50 bg-forest-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-forest-900 border border-forest-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-forest-700 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-cream-200">
-                {"\u2328\uFE0F"} Calendar Shortcuts
+        <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-7 shadow-2xl space-y-5 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="font-bold text-sm uppercase tracking-wider text-slate-800">
+                {"⌨️"} Shortcuts
               </h3>
-              <button
-                onClick={() => setShowCheatsheet(false)}
-                className="text-olive-400 hover:text-cream-200 transition-all text-xs"
-              >
-                × Close
-              </button>
+              <button onClick={() => setShowCheatsheet(false)} className="text-slate-400 hover:text-slate-600 font-bold text-xs">Close</button>
             </div>
-
-            <div className="space-y-2.5">
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Go to Inbox Page</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">gi</kbd>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-1 text-sm">
+                <span className="text-slate-600 font-medium">Go to Inbox Page</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 font-mono font-bold shadow-sm">gi</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Refresh Calendar Events</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">gc</kbd>
+              <div className="flex justify-between items-center py-1 text-sm">
+                <span className="text-slate-600 font-medium">Refresh Calendar</span>
+                <kbd className="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 font-mono font-bold shadow-sm">gc</kbd>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-forest-700/40 text-xs">
-                <span className="text-olive-400">Open Keyboard Help</span>
-                <kbd className="bg-forest-950 border border-forest-700 px-2 py-0.5 rounded text-wheat-500 font-mono font-bold">?</kbd>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setShowCheatsheet(false)}
-                className="w-full py-2 bg-gradient-to-r from-wheat-500 to-amber-500 hover:from-wheat-400 hover:to-amber-400 text-xs font-semibold rounded-xl text-forest-950"
-              >
-                Got it
-              </button>
             </div>
           </div>
         </div>

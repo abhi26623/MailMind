@@ -32,6 +32,8 @@ const STARTER_SUGGESTIONS = [
   'What meetings do I have this week?',
   'Schedule a meeting with xyz@gmail.com on Thursday at 6pm',
   'Draft a reply to my latest email',
+  'Create mail event of sending birthday invite to this email on particular day',
+  'What is my today working email etc'
 ]
 
 /**
@@ -93,7 +95,7 @@ function ChipGroupRow({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-olive-500 px-0.5">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-0.5">
         {group.label}
       </span>
       <div className="flex flex-wrap gap-2">
@@ -104,7 +106,7 @@ function ChipGroupRow({
               key={i}
               onClick={() => setShowInput(v => !v)}
               disabled={disabled}
-              className="rounded-full border border-dashed border-wheat-500/50 bg-transparent px-4 py-2 text-xs font-semibold text-wheat-500/80 shadow-sm transition-all hover:border-wheat-500 hover:bg-wheat-100 hover:-translate-y-0.5 disabled:opacity-40"
+              className="rounded-full border border-dashed border-wheat-500/50 bg-transparent px-4 py-2 text-xs font-semibold text-blue-500/80 shadow-sm transition-all hover:border-wheat-500 hover:bg-wheat-100 hover:-translate-y-0.5 disabled:opacity-40"
             >
               ✏️ Other...
             </button>
@@ -234,7 +236,7 @@ function ScriptConfirmBox({
                 {draft.meeting.end && ` → ${new Date(draft.meeting.end).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}`}
               </p>
               {draft.meeting.attendees.filter(Boolean).map(a => (
-                <p key={a} className="text-xs text-wheat-500/80 mt-1 truncate">👤 {a}</p>
+                <p key={a} className="text-xs text-blue-500/80 mt-1 truncate">👤 {a}</p>
               ))}
             </div>
           </div>
@@ -422,189 +424,230 @@ export function AgentChat() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-forest-950 font-sans text-cream-100">
-      <div className="flex-1 space-y-5 overflow-y-auto p-6">
-        {messages.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center space-y-8">
-            <div className="space-y-3 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-wheat-500 to-amber-500 text-2xl font-bold text-forest-950 shadow-lg shadow-wheat-500/20">
-                M
-              </div>
-              <h2 className="bg-gradient-to-r from-cream-100 to-cream-200 bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
-                MailMind Agent
-              </h2>
-              <p className="max-w-sm text-xs text-olive-500">
-                I can read your emails, schedule meetings, send replies, and manage your calendar. Just ask.
-              </p>
-            </div>
+    <div className="flex h-full flex-col bg-transparent font-sans text-slate-800 relative">
+      {/* Background Decor */}
+      {messages.length === 0 && (
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-tr from-cyan-100/50 to-blue-100/50 rounded-full blur-[100px] opacity-70" />
+        </div>
+      )}
 
-            <div className="w-full max-w-lg space-y-2">
-              <p className="px-1 text-[10px] font-bold uppercase tracking-widest text-olive-600">
-                Try asking
-              </p>
+      {messages.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-3xl mx-auto animate-fade-in">
+          <h1 className="text-4xl font-medium text-slate-800 mb-10 text-center tracking-tight">
+            <span className="text-slate-500">Hi Abhishek,</span> let's get started
+          </h1>
+
+          {/* Big Centered Input */}
+          <div className="w-full relative shadow-xl shadow-blue-900/5 rounded-full bg-white border border-slate-200 mb-12 transition-all focus-within:ring-4 focus-within:ring-cyan-100 focus-within:border-cyan-300">
+            <div className="flex items-center p-2.5">
+              <span className="pl-4 pr-3 text-cyan-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+              </span>
+              <input
+                id="agent-chat-input-center"
+                className="flex-1 bg-transparent border-none outline-none text-slate-800 placeholder:text-slate-400 px-2 py-3 text-lg font-medium"
+                placeholder="Ask MailMind Agent..."
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                disabled={chat.isPending}
+                autoFocus
+              />
+              <div className="pr-3 flex items-center gap-2">
+                <button 
+                  onClick={send} 
+                  disabled={chat.isPending || !input.trim()}
+                  className="p-3 rounded-full bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition-colors disabled:opacity-50 disabled:hover:bg-cyan-50"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Suggestions */}
+          <div className="w-full mt-4">
+            <div 
+              className="grid grid-cols-1 md:grid-cols-2 gap-3"
+            >
               {STARTER_SUGGESTIONS.map((prompt) => (
                 <button
                   key={prompt}
                   onClick={() => setInput(prompt)}
-                  className="block w-full rounded-xl border border-forest-700/60 bg-forest-900/30 px-4 py-3 text-left text-sm text-olive-400 transition-all hover:border-forest-600 hover:bg-forest-900/60 hover:text-cream-100"
+                  className="block w-full rounded-2xl border border-slate-300 bg-white/60 backdrop-blur-sm px-5 py-4 text-left text-sm text-slate-600 transition-all hover:border-cyan-300 hover:bg-white hover:text-cyan-800 shadow-sm"
                 >
                   {prompt}
                 </button>
               ))}
             </div>
           </div>
-        )}
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 space-y-6 overflow-y-auto p-6 z-10 w-full max-w-4xl mx-auto">
+            {messages.map((m, i) => {
+              const mySelections = chipSelections[i] ?? {}
+              const pendingGroups = (m.chipGroups ?? []).filter(g => mySelections[g.key] === undefined)
+              const isLastAssistant = m.role === 'assistant' && i === messages.length - 1
 
-        {messages.map((m, i) => {
-          const mySelections = chipSelections[i] ?? {}
-          const pendingGroups = (m.chipGroups ?? []).filter(g => mySelections[g.key] === undefined)
-          const isLastAssistant = m.role === 'assistant' && i === messages.length - 1
-
-          return (
-            <div
-              key={i}
-              className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  m.role === 'user'
-                    ? 'rounded-br-md bg-wheat-500 text-forest-950 shadow-md shadow-wheat-500/10'
-                    : 'rounded-bl-md border border-forest-700/50 bg-forest-700/80 text-cream-100'
-                }`}
-              >
-                {m.role === 'user' ? (
-                  <p className="whitespace-pre-wrap">{m.content}</p>
-                ) : (
-                  <div className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        a: ({ ...props }) => <a {...props} className="text-wheat-500 hover:underline" target="_blank" rel="noopener noreferrer" />,
-                        p: ({ ...props }) => <p {...props} className="mb-2 last:mb-0" />,
-                        ul: ({ ...props }) => <ul {...props} className="list-disc pl-4 mb-2" />,
-                        ol: ({ ...props }) => <ol {...props} className="list-decimal pl-4 mb-2" />,
-                      }}
+              return (
+                <div
+                  key={i}
+                  className={`flex gap-2 w-full ${m.role === 'user' ? 'justify-end items-end' : 'justify-start items-end'}`}
+                >
+                  {m.role === 'assistant' && (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center font-bold text-white text-xs shadow-sm shrink-0 mb-1">
+                      M
+                    </div>
+                  )}
+                  
+                  <div className={`flex flex-col gap-1.5 max-w-[80%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div
+                      className={`rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
+                        m.role === 'user'
+                          ? 'rounded-br-sm bg-blue-600 text-white'
+                          : 'rounded-bl-sm bg-slate-100 text-slate-800'
+                      }`}
                     >
-                      {m.content}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
+                      {m.role === 'user' ? (
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                      ) : (
+                        <div className="prose prose-sm max-w-none prose-slate">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              a: ({ ...props }) => <a {...props} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" />,
+                              p: ({ ...props }) => <p {...props} className="mb-2 last:mb-0" />,
+                              ul: ({ ...props }) => <ul {...props} className="list-disc pl-4 mb-2" />,
+                              ol: ({ ...props }) => <ol {...props} className="list-decimal pl-4 mb-2" />,
+                            }}
+                          >
+                            {m.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
 
-              {/* ── Chip groups (Duration / Subject / etc.) ── */}
-              {m.chipGroups && m.chipGroups.length > 0 && isLastAssistant && (
-                <div className="flex flex-col gap-3 mt-2 w-full max-w-[85%]">
-                  {m.chipGroups.map(group => {
-                    const isSelected = mySelections[group.key] !== undefined
-                    return isSelected ? (
-                      // Show selected badge
-                      <div key={group.key} className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-olive-500">{group.label}:</span>
-                        <span className="rounded-full bg-wheat-500 px-3 py-1 text-xs font-bold text-forest-950">
-                          ✓ {mySelections[group.key]}
+                  {/* ── Chip groups (Duration / Subject / etc.) ── */}
+                  {m.chipGroups && m.chipGroups.length > 0 && isLastAssistant && (
+                    <div className="flex flex-col gap-3 mt-2 w-full max-w-[85%]">
+                      {m.chipGroups.map(group => {
+                        const isSelected = mySelections[group.key] !== undefined
+                        return isSelected ? (
+                          <div key={group.key} className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{group.label}:</span>
+                            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">
+                              ✓ {mySelections[group.key]}
+                            </span>
+                          </div>
+                        ) : (
+                          <ChipGroupRow
+                            key={group.key}
+                            group={group}
+                            onSelect={(val) => handleChipSelect(i, m, group.key, val)}
+                            disabled={chat.isPending}
+                          />
+                        )
+                      })}
+                      {pendingGroups.length > 0 && (
+                        <p className="text-[10px] text-slate-400 italic">
+                          Select {pendingGroups.map(g => g.label.toLowerCase()).join(' and ')} above...
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Legacy flat suggestions ── */}
+                  {m.suggestions && m.suggestions.length > 0 && !m.chipGroups?.length && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {m.suggestions.map((suggestion, j) => (
+                        <button
+                          key={j}
+                          onClick={() => sendSuggestion(suggestion)}
+                          disabled={chat.isPending || m.requiresConfirmation}
+                          className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-100 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:hover:translate-y-0"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ── Confirm & Execute with script viewer / editor ── */}
+                  {m.requiresConfirmation && m.pendingScript && i === messages.length - 1 && (
+                    <ScriptConfirmBox
+                      script={m.pendingScript}
+                      onConfirm={handleConfirmAction}
+                      onCancel={handleCancelAction}
+                      disabled={chat.isPending}
+                    />
+                  )}
+
+                  {/* ── Action badges ── */}
+                  {m.actions && m.actions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 px-1 mt-1">
+                      {m.actions.map((action, j) => (
+                        <span
+                          key={j}
+                          className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-500 shadow-sm"
+                        >
+                          {ACTION_LABELS[action] ?? action}
                         </span>
-                      </div>
-                    ) : (
-                      <ChipGroupRow
-                        key={group.key}
-                        group={group}
-                        onSelect={(val) => handleChipSelect(i, m, group.key, val)}
-                        disabled={chat.isPending}
-                      />
-                    )
-                  })}
-                  {pendingGroups.length > 0 && (
-                    <p className="text-[10px] text-olive-600 italic">
-                      Select {pendingGroups.map(g => g.label.toLowerCase()).join(' and ')} above…
-                    </p>
+                      ))}
+                    </div>
+                  )}
+                  </div>
+                  {m.role === 'user' && (
+                    <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mb-1.5">
+                      <svg className="w-2.5 h-2.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                    </div>
                   )}
                 </div>
-              )}
+              )
+            })}
 
-              {/* ── Legacy flat suggestions ── */}
-              {m.suggestions && m.suggestions.length > 0 && !m.chipGroups?.length && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {m.suggestions.map((suggestion, j) => (
-                    <button
-                      key={j}
-                      onClick={() => sendSuggestion(suggestion)}
-                      disabled={chat.isPending || m.requiresConfirmation}
-                      className="rounded-full border border-wheat-500/30 bg-wheat-100 px-4 py-2 text-xs font-semibold text-wheat-400 shadow-sm transition-all hover:bg-wheat-200 hover:border-wheat-500/50 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:hover:translate-y-0"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
+            {chat.isPending && (
+              <div className="flex items-end gap-2 w-full justify-start">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center font-bold text-white text-xs shadow-sm shrink-0 mb-1">
+                  M
                 </div>
-              )}
-
-              {/* ── Confirm & Execute with script viewer / editor ── */}
-              {m.requiresConfirmation && m.pendingScript && i === messages.length - 1 && (
-                <ScriptConfirmBox
-                  script={m.pendingScript}
-                  onConfirm={handleConfirmAction}
-                  onCancel={handleCancelAction}
-                  disabled={chat.isPending}
-                />
-              )}
-
-              {/* ── Action badges ── */}
-              {m.actions && m.actions.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 px-1">
-                  {m.actions.map((action, j) => (
-                    <span
-                      key={j}
-                      className="rounded-full border border-forest-700/50 bg-forest-900/60 px-2.5 py-1 text-[10px] font-semibold text-olive-400"
-                    >
-                      {ACTION_LABELS[action] ?? action}
-                    </span>
-                  ))}
+                <div className="rounded-2xl rounded-bl-sm bg-slate-100 px-5 py-4 text-sm text-slate-500 shadow-sm flex items-center h-[50px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: '0ms' }} />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: '150ms' }} />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: '300ms' }} />
+                  </div>
                 </div>
-              )}
-            </div>
-          )
-        })}
-
-        {chat.isPending && (
-          <div className="flex items-start gap-2">
-            <div className="rounded-2xl rounded-bl-md border border-forest-700/50 bg-forest-700/80 px-4 py-3 text-sm text-olive-400">
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-wheat-500" style={{ animationDelay: '0ms' }} />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-wheat-500" style={{ animationDelay: '150ms' }} />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-wheat-500" style={{ animationDelay: '300ms' }} />
-                </div>
-                <span className="text-xs">Thinking...</span>
               </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="bg-white/80 border-t border-slate-200 p-4 backdrop-blur-md z-20">
+            <div className="mx-auto flex max-w-4xl gap-3">
+              <input
+                id="agent-chat-input"
+                className="flex-1 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm"
+                placeholder="Ask MailMind Agent..."
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                disabled={chat.isPending}
+              />
+              <button
+                id="agent-send-btn"
+                onClick={send}
+                disabled={chat.isPending || !input.trim()}
+                className="rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 flex items-center justify-center"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              </button>
             </div>
           </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="border-t border-forest-700/80 bg-forest-900/40 p-4 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl gap-2">
-          <input
-            id="agent-chat-input"
-            className="flex-1 rounded-xl border border-forest-700/50 bg-forest-800/60 px-4 py-3 text-sm text-cream-100 outline-none transition-all placeholder:text-cream-300 focus:border-wheat-500/50"
-            placeholder="Schedule a meeting, summarize emails..."
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            disabled={chat.isPending}
-          />
-          <button
-            id="agent-send-btn"
-            onClick={send}
-            disabled={chat.isPending || !input.trim()}
-            className="rounded-xl bg-wheat-500 px-4 py-3 text-sm font-bold text-forest-950 shadow-md shadow-wheat-500/10 transition-all hover:bg-wheat-400 disabled:opacity-30 disabled:hover:bg-wheat-500"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-          </button>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }

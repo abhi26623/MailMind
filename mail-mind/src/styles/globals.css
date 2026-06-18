@@ -55,14 +55,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-forest-950);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-forest-700);
+  background: #cbd5e1;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-olive-600);
+  background: #94a3b8;
 }
 
 /* Animation keyframes */
