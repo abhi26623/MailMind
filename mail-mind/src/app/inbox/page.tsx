@@ -197,6 +197,27 @@ export default function InboxPage() {
       }
     },
   });
+
+  const composeDraftMutation = api.agent.generateDraft.useMutation({
+    onSuccess: (res) => {
+      setComposeBody(res.draft);
+      setIsComposeAiOpen(false);
+      setComposeAiPrompt("");
+      showToast("Draft generated!", "success");
+    },
+    onError: (err) => showToast(`Failed to generate draft: ${err.message}`, "error"),
+  });
+
+  const replyDraftMutation = api.agent.generateDraft.useMutation({
+    onSuccess: (res) => {
+      setReplyBody(res.draft);
+      setIsReplyAiOpen(false);
+      setReplyAiPrompt("");
+      showToast("Draft generated!", "success");
+    },
+    onError: (err) => showToast(`Failed to generate draft: ${err.message}`, "error"),
+  });
+
   const generationTriggered = useRef<string>("");
   useEffect(() => {
     if (!insights || !threads.length) return;
@@ -226,9 +247,13 @@ export default function InboxPage() {
   const [composeTo, setComposeTo] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
+  const [isComposeAiOpen, setIsComposeAiOpen] = useState(false);
+  const [composeAiPrompt, setComposeAiPrompt] = useState("");
 
   const [isReplyOpen, setIsReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState("");
+  const [isReplyAiOpen, setIsReplyAiOpen] = useState(false);
+  const [replyAiPrompt, setReplyAiPrompt] = useState("");
 
   // Helper: Toast
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
@@ -1064,7 +1089,35 @@ export default function InboxPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Message Body</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600">Message Body</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsComposeAiOpen(!isComposeAiOpen)}
+                    className="flex items-center space-x-1 text-xs font-semibold text-blue-500 hover:text-blue-600 transition-colors"
+                  >
+                    <span>✨ Draft with AI</span>
+                  </button>
+                </div>
+                {isComposeAiOpen && (
+                  <div className="mb-2 p-3 bg-blue-50 border border-blue-100 rounded-xl space-y-2">
+                    <input
+                      type="text"
+                      value={composeAiPrompt}
+                      onChange={(e) => setComposeAiPrompt(e.target.value)}
+                      placeholder="What should the AI write?"
+                      className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={composeDraftMutation.isPending || !composeAiPrompt}
+                      onClick={() => composeDraftMutation.mutate({ prompt: composeAiPrompt })}
+                      className="w-full py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-bold rounded-lg shadow disabled:opacity-50"
+                    >
+                      {composeDraftMutation.isPending ? "Generating..." : "Generate Draft"}
+                    </button>
+                  </div>
+                )}
                 <textarea
                   rows={6}
                   value={composeBody}
@@ -1086,7 +1139,7 @@ export default function InboxPage() {
                 <button
                   type="submit"
                   disabled={sendMutation.isPending}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-blue-500/20 shadow-md shadow-wheat-500/10"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-blue-500/20"
                 >
                   {sendMutation.isPending ? "Sending..." : "Send Email"}
                 </button>
@@ -1121,7 +1174,38 @@ export default function InboxPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Your Reply</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600">Your Reply</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsReplyAiOpen(!isReplyAiOpen)}
+                    className="flex items-center space-x-1 text-xs font-semibold text-indigo-500 hover:text-indigo-600 transition-colors"
+                  >
+                    <span>✨ Draft with AI</span>
+                  </button>
+                </div>
+                {isReplyAiOpen && (
+                  <div className="mb-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-2">
+                    <input
+                      type="text"
+                      value={replyAiPrompt}
+                      onChange={(e) => setReplyAiPrompt(e.target.value)}
+                      placeholder="What should the AI write?"
+                      className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={replyDraftMutation.isPending || !replyAiPrompt}
+                      onClick={() => replyDraftMutation.mutate({ 
+                        prompt: replyAiPrompt,
+                        context: activeThread.snippet
+                      })}
+                      className="w-full py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold rounded-lg shadow disabled:opacity-50"
+                    >
+                      {replyDraftMutation.isPending ? "Generating..." : "Generate Reply"}
+                    </button>
+                  </div>
+                )}
                 <textarea
                   rows={6}
                   value={replyBody}
