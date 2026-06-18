@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { SettingsModal } from "@/app/_components/settings-modal";
 import { SignOutButton } from "@/app/_components/auth-buttons";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
@@ -1326,6 +1327,7 @@ export default function InboxPage() {
         onClose={() => setShowPeekModal(false)} 
         onConfirm={handleConfirmPeekSchedule} 
       />
+          {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
     </div>
   );
 }
