@@ -306,26 +306,18 @@ export default function CalendarPage() {
 
 
 
-        {/* Upcoming Meeting Card */}
+        {/* Upcoming Events Section */}
         <div className="p-6 border-b border-slate-100">
-          <div className="bg-white rounded-3xl p-5 text-slate-800 relative overflow-hidden shadow-sm border border-slate-200">
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-2">
-                <div className="text-[10px] font-semibold text-slate-500 tracking-wider">
-                  12:00 - 13:30
-                </div>
-                <div className="flex items-center gap-1 text-[10px] bg-purple-50 px-2 py-0.5 rounded-full backdrop-blur-sm border border-purple-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                  <span className="font-semibold text-purple-700">14 min</span>
-                </div>
-              </div>
-              <h4 className="font-bold text-[15px] leading-snug mb-5 text-slate-800">Meet Gabriel at the International Library</h4>
-              <div className="flex gap-3">
-                <button className="flex-1 py-2 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">Later</button>
-                <button className="flex-1 py-2 rounded-xl bg-purple-500 text-[11px] font-bold text-white hover:bg-purple-600 transition-colors shadow-sm">Details</button>
-              </div>
+          <h3 className="font-bold text-[13px] text-slate-800 mb-4">Upcoming Events</h3>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-slate-500 tracking-wider">12:00 - 13:30</span>
+              <span className="text-sm font-bold text-slate-800">Meet Gabriel at the International Library</span>
             </div>
-
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-slate-500 tracking-wider">15:00 - 16:00</span>
+              <span className="text-sm font-bold text-slate-800">Design Sync</span>
+            </div>
           </div>
         </div>
 
@@ -369,7 +361,6 @@ export default function CalendarPage() {
           <div className="flex items-center gap-6">
             {/* View Toggle */}
             <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-              <button onClick={() => setCalendarView("month")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "month" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Month</button>
               <button onClick={() => setCalendarView("week")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "week" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Week</button>
               <button onClick={() => setCalendarView("day")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "day" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Day</button>
             </div>
