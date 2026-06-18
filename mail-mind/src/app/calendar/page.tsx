@@ -217,12 +217,12 @@ export default function CalendarPage() {
       return { display: "none" as const };
     }
 
-    const topPercent = ((viewStart - 8) / 12) * 100;
-    const heightPercent = ((viewEnd - viewStart) / 12) * 100;
+    const leftPercent = ((viewStart - 8) / 12) * 100;
+    const widthPercent = ((viewEnd - viewStart) / 12) * 100;
 
     return {
-      top: `${topPercent}%`,
-      height: `${heightPercent}%`,
+      left: `${leftPercent}%`,
+      width: `${widthPercent}%`,
     };
   };
 
@@ -398,39 +398,33 @@ export default function CalendarPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                 Agent
               </Link>
+              <Link href="/settings" className="w-10 h-10 ml-2 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center transition-all shadow-sm">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </Link>
             </div>
           </div>
         </header>
 
-        {/* Days Header */}
+        {/* Hours Header (Timeline style) */}
         <div className="px-8 pt-6 pb-2 z-10 shrink-0 bg-white border-b border-slate-100">
           <div className="flex">
-            <div className="w-20 shrink-0 flex items-center justify-center border-r border-slate-100/50">
-              <button onClick={() => setIsInviteOpen(true)} className="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center transition-colors shadow-sm">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <div className="w-32 shrink-0 flex items-center justify-center border-r border-slate-100/50 pr-4">
+              <button onClick={() => setIsInviteOpen(true)} className="w-10 h-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center transition-colors shadow-sm">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </button>
             </div>
-            {currentDays.map((day, idx) => {
-              const isToday = day.toDateString() === new Date().toDateString();
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center justify-center py-2 relative">
-                  {isToday && <div className="absolute inset-0 bg-slate-800 rounded-2xl shadow-lg -top-2 -bottom-2 z-0 transform scale-[1.05]" />}
-                  <div className="relative z-10 flex flex-col items-center">
-                    <span className={`text-[12px] font-bold tracking-wide mb-1 ${isToday ? 'text-slate-300' : 'text-slate-500'}`}>
-                      {day.toLocaleDateString(undefined, { weekday: "long" })}
-                    </span>
-                    <span className={`text-2xl font-bold tracking-tight ${isToday ? 'text-white' : 'text-slate-800'}`}>
-                      {day.getDate()}
-                    </span>
-                  </div>
+            <div className="flex-1 flex relative">
+              {workHours.slice(0, 12).map((hour, idx) => (
+                <div key={hour} className="flex-1 border-l border-transparent pl-2 text-[10px] font-bold text-slate-400 pt-3">
+                  {hour === 12 ? "12 pm" : hour > 12 ? `${hour - 12} pm` : `${hour} am`}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Grid Body */}
-        <div className="flex-1 overflow-y-auto relative custom-scrollbar bg-white">
+        <div className="flex-1 overflow-y-auto relative custom-scrollbar bg-white overflow-x-hidden min-h-0">
           {!status?.googlecalendar?.connected ? (
             /* ── Not connected state ─────────────────────────────────────── */
             <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 max-w-md mx-auto text-center bg-slate-50/50 rounded-3xl m-8 border border-slate-100">
@@ -451,67 +445,84 @@ export default function CalendarPage() {
               </button>
             </div>
           ) : (
-            <div className={`w-full grid ${calendarView === "week" ? "grid-cols-8" : "grid-cols-2"} relative min-h-[1200px]`}>
-              {/* Time Slot labels column */}
-              <div className="text-slate-400 bg-white">
-                {workHours.map((hour) => (
-                  <div key={hour} className="h-28 border-b border-slate-100/60 flex items-start justify-end pr-5 pt-3 text-[12px] font-bold text-slate-400">
-                    {hour === 12 ? "12 pm" : hour > 12 ? `${hour - 12} pm` : `${hour} am`}
-                  </div>
-                ))}
-              </div>
-
-              {/* Columns for Days */}
-              {currentDays.map((day, dayIdx) => (
-                <div key={dayIdx} className="relative border-l border-slate-100/60 bg-white">
-                  {workHours.map((hour) => (
-                    <div
-                      key={hour}
-                      onClick={() => handleSlotClick(day, hour)}
-                      className="h-28 border-b border-slate-100/60 hover:bg-slate-50/50 cursor-pointer transition-colors relative group"
-                    >
-                      <div className="absolute inset-2 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Render events for this day */}
-                  {groupedEvents[day.getDay()]?.map((event: any, i: number) => {
-                    const style = getEventStyle(event);
-                    if (style.display === "none") return null;
+            <div className="w-full flex flex-col min-w-[800px]">
+              {/* Rows for Days */}
+              {currentDays.map((day, dayIdx) => {
+                const isToday = day.toDateString() === new Date().toDateString();
+                return (
+                  <div key={dayIdx} className="flex relative border-b border-slate-100/60 min-h-[90px] px-8 hover:bg-slate-50/30 transition-colors">
                     
-                    const pastelColors = [
-                      "bg-[#bde8fb] text-[#1c6499]", // light blue
-                      "bg-[#b5f4c4] text-[#1e7a36]", // light green
-                      "bg-[#d0c6ff] text-[#48339f]", // light purple
-                      "bg-[#ffe599] text-[#93660a]", // light yellow
-                      "bg-[#ffb3d9] text-[#9c185e]"  // light pink
-                    ];
-                    const colorClass = pastelColors[i % pastelColors.length];
+                    {/* Day Label (Y-axis) */}
+                    <div className="w-32 shrink-0 py-4 flex items-center justify-start border-r border-slate-100/60 pr-6 relative">
+                       {isToday && <div className="absolute inset-y-2 left-0 right-4 bg-slate-800 rounded-2xl shadow-lg -z-0" />}
+                       <div className="relative z-10 flex flex-col items-start pl-4">
+                         <span className={`text-[10px] font-bold tracking-wide uppercase ${isToday ? 'text-slate-300' : 'text-slate-400'}`}>
+                           {day.toLocaleDateString(undefined, { weekday: "short" })}
+                         </span>
+                         <span className={`text-xl font-black tracking-tight leading-none mt-0.5 ${isToday ? 'text-white' : 'text-slate-700'}`}>
+                           {day.getDate()}
+                         </span>
+                       </div>
+                    </div>
 
-                    return (
-                      <div
-                        key={event.id}
-                        className={`absolute left-2 right-2 rounded-[20px] p-4 shadow-sm overflow-hidden flex flex-col ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer`}
-                        style={{ top: style.top, height: style.height }}
-                        title={event.summary}
-                      >
-                        <h4 className="font-bold text-[13px] leading-tight mb-1">{event.summary || "(No Title)"}</h4>
-                        <div className="text-[11px] opacity-70 font-semibold mb-2">
-                          {new Date(event.start.dateTime || event.start.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
-                          {new Date(event.end.dateTime || event.end.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                        {/* Fake avatars for flavor */}
-                        <div className="mt-auto flex -space-x-2">
-                          <div className="w-6 h-6 rounded-full bg-black/10 border-2 border-white/40 flex items-center justify-center text-[9px] font-black uppercase shadow-sm">JD</div>
-                          <div className="w-6 h-6 rounded-full bg-black/10 border-2 border-white/40 flex items-center justify-center text-[9px] font-black uppercase shadow-sm">AL</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                    {/* Timeline (X-axis) */}
+                    <div className="flex-1 relative">
+                       {/* Background vertical hour lines */}
+                       <div className="absolute inset-0 flex pointer-events-none">
+                          {workHours.slice(0, 12).map(h => (
+                             <div key={h} className="flex-1 border-l border-slate-100/50" />
+                          ))}
+                       </div>
+
+                       {/* Clickable area for new events */}
+                       <div className="absolute inset-0 flex">
+                         {workHours.slice(0, 12).map((hour) => (
+                           <div
+                             key={hour}
+                             onClick={() => handleSlotClick(day, hour)}
+                             className="flex-1 cursor-pointer group"
+                           >
+                             <div className="h-full border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity mx-1 my-2">
+                               <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+
+                       {/* Render events horizontally */}
+                       {groupedEvents[day.getDay()]?.map((event: any, i: number) => {
+                          const style = getEventStyle(event);
+                          if (style.display === "none") return null;
+                          
+                          const pastelColors = [
+                            "bg-[#bde8fb] text-[#1c6499]", // light blue
+                            "bg-[#b5f4c4] text-[#1e7a36]", // light green
+                            "bg-[#d0c6ff] text-[#48339f]", // light purple
+                            "bg-[#ffe599] text-[#93660a]", // light yellow
+                            "bg-[#ffb3d9] text-[#9c185e]"  // light pink
+                          ];
+                          const colorClass = pastelColors[i % pastelColors.length];
+
+                          return (
+                            <div
+                              key={event.id}
+                              className={`absolute rounded-[10px] p-2 px-3 shadow-sm overflow-hidden flex flex-col justify-center ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer`}
+                              style={{ left: style.left, width: style.width, top: '10px', bottom: '10px' }}
+                              title={event.summary}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="font-extrabold text-[10px] leading-tight truncate">{event.summary || "(No Title)"}</h4>
+                                <div className="text-[9px] opacity-80 font-bold shrink-0">
+                                  {new Date(event.start.dateTime || event.start.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(' ', '')}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                       })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
