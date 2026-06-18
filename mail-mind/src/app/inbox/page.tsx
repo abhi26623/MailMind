@@ -303,6 +303,7 @@ export default function InboxPage() {
   });
 
   const [showPeekModal, setShowPeekModal] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleOpenPeekModal = () => {
     if (!activeThread || !activeInsight) return;
