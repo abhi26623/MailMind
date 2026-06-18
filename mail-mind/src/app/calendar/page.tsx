@@ -336,10 +336,10 @@ export default function CalendarPage() {
           <div className="space-y-4">
             {isLoading ? (
               <div className="text-xs text-slate-500">Loading events...</div>
-            ) : (!eventsData || eventsData.length === 0) ? (
+            ) : (!eventsData?.items || eventsData.items.length === 0) ? (
               <div className="text-xs text-slate-500">No upcoming events found.</div>
             ) : (
-              eventsData.slice(0, 5).map((event: any, i: number) => {
+              eventsData.items.slice(0, 5).map((event: any, i: number) => {
                 const startTime = event.start?.dateTime ? new Date(event.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "All day";
                 const endTime = event.end?.dateTime ? new Date(event.end.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
                 return (
