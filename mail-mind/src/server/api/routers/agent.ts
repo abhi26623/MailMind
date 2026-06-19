@@ -51,4 +51,33 @@ Only output the email body. Do NOT include Subject line or introductory chat (li
         draft: res.choices[0]?.message?.content || "",
       };
     }),
+  polishTone: protectedProcedure
+    .input(z.object({
+      text: z.string(),
+      tone: z.enum(["professional", "shorter", "grammar"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { openrouter, AGENT_MODELS } = await import("@/lib/ai");
+      
+      let instruction = "";
+      if (input.tone === "professional") instruction = "Rewrite this email text to be more professional and polite, keeping the same core meaning.";
+      else if (input.tone === "shorter") instruction = "Rewrite this email text to be concise and shorter, removing fluff but keeping the main point.";
+      else if (input.tone === "grammar") instruction = "Fix any grammar, spelling, or punctuation errors in this email text, but do not change the style.";
+
+      const systemPrompt = `You are an AI writing assistant. ${instruction}
+Only output the revised text. Do not include introductory or concluding phrases like 'Here is the revised text:'.`;
+
+      const res = await openrouter.chat.completions.create({
+        model: AGENT_MODELS.geminiFlashLite.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: input.text },
+        ],
+        temperature: 0.3,
+      });
+
+      return {
+        polished: res.choices[0]?.message?.content || input.text,
+      };
+    }),
 });

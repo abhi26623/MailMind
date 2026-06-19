@@ -4,6 +4,8 @@ import { api } from '@/trpc/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { authClient } from '@/server/better-auth/client'
+
 type ChipGroup = {
   label: string        // e.g. "Duration" or "Subject"
   key: string          // e.g. "duration" or "subject"
@@ -32,7 +34,7 @@ const STARTER_SUGGESTIONS = [
   'What meetings do I have this week?',
   'Schedule a meeting with xyz@gmail.com on Thursday at 6pm',
   'Draft a reply to my latest email',
-  'Create mail event of sending birthday invite to this email on particular day',
+  'Find my flight ticket or any other ticket',
   'What is my today working email etc'
 ]
 
@@ -302,6 +304,8 @@ export function AgentChat() {
   // Tracks selected chip values per message index: { messageIdx: { duration: "45 min", subject: "..." } }
   const [chipSelections, setChipSelections] = useState<Record<number, Record<string, string>>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  const { data: session } = authClient.useSession()
 
   const chat = api.agent.chat.useMutation({
     onSuccess: (data) => {
@@ -435,7 +439,7 @@ export function AgentChat() {
       {messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-3xl mx-auto animate-fade-in">
           <h1 className="text-4xl font-medium text-slate-800 mb-10 text-center tracking-tight">
-            <span className="text-slate-500">Hi Abhishek,</span> let's get started
+            <span className="text-slate-500">Hi {session?.user?.name ? session.user.name.split(' ')[0] : 'there'},</span> let's get started
           </h1>
 
           {/* Big Centered Input */}

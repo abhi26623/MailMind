@@ -196,6 +196,117 @@ export const emailRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  /** Summarize a thread. */
+  summarizeThread: protectedProcedure
+    .input(z.object({ threadId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const res = await corsair
+        .withTenant(ctx.tenantId)
+        .gmail.api.threads.get({ userId: "me", id: input.threadId });
+      
+      let allText = "";
+      for (const msg of res.messages || []) {
+        if (msg.snippet) allText += msg.snippet + "\n";
+      }
+
+      const { openrouter, AGENT_MODELS } = await import("@/lib/ai");
+      const systemPrompt = `Summarize this email chain concisely in 2-3 bullet points.`;
+      
+      const llmRes = await openrouter.chat.completions.create({
+        model: AGENT_MODELS.geminiFlashLite.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: allText.substring(0, 4000) },
+        ],
+        temperature: 0.3,
+      });
+
+      return { summary: llmRes.choices[0]?.message?.content || "No summary available." };
+    }),
+
+  /** Unsubscribe and Optionally Clean up past emails. */
+  unsubscribeAndClean: protectedProcedure
+    .input(z.object({ threadId: z.string(), cleanUp: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const threadRes = await corsair
+        .withTenant(ctx.tenantId)
+        .gmail.api.threads.get({ userId: "me", id: input.threadId });
+
+      let listUnsubscribeHeader = "";
+      let senderEmail = "";
+      
+      if (threadRes.messages && threadRes.messages.length > 0) {
+        const lastMsg = threadRes.messages[threadRes.messages.length - 1];
+        const headers = lastMsg.payload?.headers || [];
+        
+        const unsub = headers.find((h: any) => h.name.toLowerCase() === "list-unsubscribe");
+        if (unsub) listUnsubscribeHeader = unsub.value;
+
+        const from = headers.find((h: any) => h.name.toLowerCase() === "from");
+        if (from) {
+          const match = from.value.match(/<([^>]+)>/);
+          if (match) senderEmail = match[1];
+          else senderEmail = from.value;
+        }
+      }
+
+      if (listUnsubscribeHeader) {
+        const mailtoMatch = listUnsubscribeHeader.match(/<mailto:([^>]+)>/);
+        if (mailtoMatch) {
+          const toAddress = mailtoMatch[1];
+          const headersStr = [
+            `To: ${toAddress}`,
+            `Subject: Unsubscribe`,
+            "Content-Type: text/plain; charset=utf-8",
+            "MIME-Version: 1.0",
+            "",
+            "Unsubscribe",
+          ].join("\r\n");
+          const raw = Buffer.from(headersStr).toString("base64url");
+          try {
+             await corsair.withTenant(ctx.tenantId).gmail.api.messages.send({ userId: "me", raw });
+          } catch(e) {
+             console.error("Failed to send mailto unsubscribe", e);
+          }
+        } else {
+           const urlMatch = listUnsubscribeHeader.match(/<https?:\/\/([^>]+)>/);
+           if (urlMatch) {
+              const url = urlMatch[0].replace("<", "").replace(">", "");
+              try {
+                 await fetch(url, { method: 'POST' }).catch(() => fetch(url));
+              } catch (e) {
+                 console.error("Failed to fetch unsubscribe URL", e);
+              }
+           }
+        }
+      }
+
+      // Cleanup
+      let deletedCount = 0;
+      if (input.cleanUp && senderEmail) {
+         try {
+            const listRes = await corsair.withTenant(ctx.tenantId).gmail.api.messages.list({
+               userId: "me",
+               q: `from:${senderEmail}`,
+               maxResults: 100
+            });
+            const messages = listRes.messages || [];
+            if (messages.length > 0) {
+               const ids = messages.map((m: any) => m.id);
+               await corsair.withTenant(ctx.tenantId).gmail.api.messages.batchTrash({
+                  userId: "me",
+                  ids
+               });
+               deletedCount = ids.length;
+            }
+         } catch(e) {
+            console.error("Failed to cleanup emails", e);
+         }
+      }
+
+      return { success: true, deletedCount, listUnsubscribeFound: !!listUnsubscribeHeader };
+    }),
+
   // Calendar
 
   /** Fetch events for a date range (defaults to current week). */

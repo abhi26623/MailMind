@@ -207,6 +207,45 @@ export default function InboxPage() {
     }
   });
 
+  const [threadSummary, setThreadSummary] = useState<Record<string, string>>({});
+  const summarizeMutation = api.email.summarizeThread.useMutation({
+    onSuccess: (res, variables) => {
+      setThreadSummary(prev => ({ ...prev, [variables.threadId]: res.summary }));
+      showToast("Thread summarized!", "success");
+    },
+    onError: (err) => showToast(`Failed to summarize: ${err.message}`, "error"),
+  });
+
+  const [showUnsubscribeConfirm, setShowUnsubscribeConfirm] = useState(false);
+  const unsubscribeMutation = api.email.unsubscribeAndClean.useMutation({
+    onSuccess: (res) => {
+      if (res.listUnsubscribeFound) {
+        showToast(`Unsubscribed! Cleaned up ${res.deletedCount} past emails.`, "success");
+      } else {
+        showToast(`No unsubscribe link found. Cleaned up ${res.deletedCount} past emails.`, "info");
+      }
+      setShowUnsubscribeConfirm(false);
+      void refetch();
+    },
+    onError: (err) => showToast(`Failed to unsubscribe: ${err.message}`, "error"),
+  });
+
+  const composePolishMutation = api.agent.polishTone.useMutation({
+    onSuccess: (res) => {
+      setComposeBody(res.polished);
+      showToast("Tone polished!", "success");
+    },
+    onError: (err) => showToast(`Failed to polish tone: ${err.message}`, "error"),
+  });
+
+  const replyPolishMutation = api.agent.polishTone.useMutation({
+    onSuccess: (res) => {
+      setReplyBody(res.polished);
+      showToast("Tone polished!", "success");
+    },
+    onError: (err) => showToast(`Failed to polish tone: ${err.message}`, "error"),
+  });
+
   // Thread Memoization
   const threads: Thread[] = useMemo(() => {
     if (!data) return [];
@@ -629,10 +668,7 @@ export default function InboxPage() {
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Inbox</span>}
               </button>
-              <button onClick={() => { handleCategorySelect(null); setActiveFolder("unread"); }} className={`py-3 ${activeFolder === "unread" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Unread</span>}
-              </button>
+
               <button onClick={() => { handleCategorySelect(null); setActiveFolder("drafts"); }} className={`py-3 ${activeFolder === "drafts" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Drafts</span>}
@@ -655,27 +691,7 @@ export default function InboxPage() {
               </button>
             </div>
 
-            <div className="pt-4 border-t border-forest-900/10 w-full flex flex-col items-start mt-4">
-              {isSidebarOpen && <span className="text-[9px] font-bold uppercase tracking-widest text-forest-400 px-3 mb-2">Categories</span>}
-              <div className="space-y-1 w-full">
-                <button onClick={() => handleCategorySelect("work")} className={`py-3 ${activeCategory === "work" ? "bg-purple-50 text-purple-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className={`w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm flex-shrink-0 ${activeCategory === "work" ? "ring-2 ring-purple-300" : ""}`} />
-                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "work" ? "text-purple-700 font-semibold" : "text-forest-700"}`}>Work</span>}
-                </button>
-                <button onClick={() => handleCategorySelect("social")} className={`py-3 ${activeCategory === "social" ? "bg-blue-50 text-blue-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className={`w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm flex-shrink-0 ${activeCategory === "social" ? "ring-2 ring-blue-300" : ""}`} />
-                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "social" ? "text-blue-700 font-semibold" : "text-forest-700"}`}>Social</span>}
-                </button>
-                <button onClick={() => handleCategorySelect("events")} className={`py-3 ${activeCategory === "events" ? "bg-cyan-50 text-cyan-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className={`w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm flex-shrink-0 ${activeCategory === "events" ? "ring-2 ring-cyan-300" : ""}`} />
-                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "events" ? "text-cyan-700 font-semibold" : "text-forest-700"}`}>Events</span>}
-                </button>
-                <button onClick={() => handleCategorySelect("personal")} className={`py-3 ${activeCategory === "personal" ? "bg-amber-50 text-amber-700" : "hover:bg-white/60"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} transition-all`}>
-                  <span className={`w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm flex-shrink-0 ${activeCategory === "personal" ? "ring-2 ring-amber-300" : ""}`} />
-                  {isSidebarOpen && <span className={`ml-4 font-medium text-xs whitespace-nowrap ${activeCategory === "personal" ? "text-amber-700 font-semibold" : "text-forest-700"}`}>Personal</span>}
-                </button>
-              </div>
-            </div>
+
           </div>
           
           <div className="w-full px-3 mt-auto mb-4 space-y-2">
@@ -709,6 +725,33 @@ export default function InboxPage() {
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 rounded-lg text-xs outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-sm" 
               />
               <svg className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </div>
+            
+            <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-1 pt-1">
+              <button 
+                onClick={() => handleCategorySelect("work")} 
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide transition-all border ${activeCategory === "work" ? "bg-purple-100 border-purple-200 text-purple-700 shadow-sm" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              >
+                Work
+              </button>
+              <button 
+                onClick={() => handleCategorySelect("social")} 
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide transition-all border ${activeCategory === "social" ? "bg-blue-100 border-blue-200 text-blue-700 shadow-sm" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              >
+                Social
+              </button>
+              <button 
+                onClick={() => handleCategorySelect("events")} 
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide transition-all border ${activeCategory === "events" ? "bg-cyan-100 border-cyan-200 text-cyan-700 shadow-sm" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              >
+                Events
+              </button>
+              <button 
+                onClick={() => handleCategorySelect("personal")} 
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide transition-all border ${activeCategory === "personal" ? "bg-amber-100 border-amber-200 text-amber-700 shadow-sm" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              >
+                Personal
+              </button>
             </div>
           </div>
 
@@ -897,17 +940,58 @@ export default function InboxPage() {
               {/* Thread Content Header */}
               <div className="bg-white border border-forest-900/10 p-6 rounded-2xl shadow-sm mb-4">
                 <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-2">{activeThread.snippet || "New Message"}</h2>
-                    <div className="flex items-center space-x-3 mt-4">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                        {String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26))}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">Sender Name <span className="text-xs font-normal text-slate-500">&lt;sender@example.com&gt;</span></p>
-                        <p className="text-xs text-slate-500">To: me</p>
-                      </div>
+                  <div className="w-full">
+                    <div className="flex justify-between items-start">
+                      <h2 className="text-xl font-bold text-slate-900 mb-2">{activeThread.snippet || "New Message"}</h2>
+                      {/* Unsubscribe Button for Newsletters */}
+                      {(activeInsight?.category === "newsletter" || activeInsight?.category === "promotional") && (
+                        <button
+                          onClick={() => setShowUnsubscribeConfirm(true)}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-lg border border-rose-200 transition-colors flex items-center space-x-1 whitespace-nowrap"
+                        >
+                          <span>🔕 Unsubscribe & Clean Up</span>
+                        </button>
+                      )}
                     </div>
+                    
+                    <div className="flex justify-between items-end mt-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                          {String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26))}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Sender Name <span className="text-xs font-normal text-slate-500">&lt;sender@example.com&gt;</span></p>
+                          <p className="text-xs text-slate-500">To: me</p>
+                        </div>
+                      </div>
+
+                      {/* Summarize Thread Button */}
+                      {threadDetails?.messages && threadDetails.messages.length > 2 && !threadSummary[activeThread.id] && (
+                        <button
+                          onClick={() => summarizeMutation.mutate({ threadId: activeThread.id })}
+                          disabled={summarizeMutation.isPending}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold rounded-lg border border-indigo-200 transition-colors flex items-center space-x-1"
+                        >
+                          {summarizeMutation.isPending ? (
+                            <span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block"></span>
+                          ) : (
+                            <span>✨ Summarize Thread</span>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Summary Display Box */}
+                    {threadSummary[activeThread.id] && (
+                      <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                        <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 flex items-center">
+                          <span>✨ AI Summary</span>
+                        </h4>
+                        <div className="text-sm text-indigo-900 leading-relaxed whitespace-pre-wrap">
+                          {threadSummary[activeThread.id]}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1171,6 +1255,32 @@ export default function InboxPage() {
                   placeholder="Write your email here..."
                   className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner resize-none"
                 />
+                <div className="flex space-x-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => composePolishMutation.mutate({ text: composeBody, tone: "professional" })}
+                    disabled={!composeBody || composePolishMutation.isPending}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    👔 Professional
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => composePolishMutation.mutate({ text: composeBody, tone: "shorter" })}
+                    disabled={!composeBody || composePolishMutation.isPending}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    ✂️ Shorter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => composePolishMutation.mutate({ text: composeBody, tone: "grammar" })}
+                    disabled={!composeBody || composePolishMutation.isPending}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    📝 Fix Grammar
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2 pt-2">
@@ -1259,6 +1369,32 @@ export default function InboxPage() {
                   placeholder="Write reply here..."
                   className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner resize-none"
                 />
+                <div className="flex space-x-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => replyPolishMutation.mutate({ text: replyBody, tone: "professional" })}
+                    disabled={!replyBody || replyPolishMutation.isPending}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    👔 Professional
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => replyPolishMutation.mutate({ text: replyBody, tone: "shorter" })}
+                    disabled={!replyBody || replyPolishMutation.isPending}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    ✂️ Shorter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => replyPolishMutation.mutate({ text: replyBody, tone: "grammar" })}
+                    disabled={!replyBody || replyPolishMutation.isPending}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    📝 Fix Grammar
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2 pt-2">
@@ -1371,7 +1507,62 @@ export default function InboxPage() {
         onClose={() => setShowPeekModal(false)} 
         onConfirm={handleConfirmPeekSchedule} 
       />
-          {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+
+      {/* Unsubscribe Confirmation Modal */}
+      {showUnsubscribeConfirm && activeThread && (
+        <div className="fixed inset-0 z-50 bg-forest-900/40 flex items-center justify-center p-4">
+          <div className="bg-white border border-forest-900/10 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-rose-600 flex items-center space-x-1.5">
+                <span>🔕 Confirm Unsubscribe</span>
+              </h3>
+              <button
+                onClick={() => setShowUnsubscribeConfirm(false)}
+                className="text-slate-400 hover:text-slate-600 transition-all text-xs font-semibold"
+              >
+                x Close
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-700">
+              Are you sure you want to unsubscribe from this sender?
+            </p>
+
+            <div className="flex items-center space-x-2 bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2">
+              <input 
+                type="checkbox" 
+                id="cleanupCheckbox" 
+                defaultChecked 
+                className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
+              />
+              <label htmlFor="cleanupCheckbox" className="text-xs font-medium text-slate-700 cursor-pointer">
+                Also move all past emails from this sender to the Trash
+              </label>
+            </div>
+
+            <div className="pt-2 flex justify-end space-x-2">
+              <button
+                onClick={() => setShowUnsubscribeConfirm(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-xs font-semibold rounded-xl text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={unsubscribeMutation.isPending}
+                onClick={() => {
+                  const cleanup = (document.getElementById('cleanupCheckbox') as HTMLInputElement)?.checked ?? true;
+                  unsubscribeMutation.mutate({ threadId: activeThread.id, cleanUp: cleanup });
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-rose-500/20"
+              >
+                {unsubscribeMutation.isPending ? "Processing..." : "Unsubscribe Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
     </div>
   );
 }
