@@ -4,6 +4,8 @@ import { googlecalendar } from '@corsair-dev/googlecalendar';
 import { conn } from './db';
 import { generateAndSaveInsight } from './api/routers/insights';
 
+import { createCorsairDatabase } from 'corsair/db';
+
 export const corsair = createCorsair({
   plugins: [
     gmail({
@@ -40,7 +42,7 @@ export const corsair = createCorsair({
       }
     }),
   ],
-  database: conn,
+  database: createCorsairDatabase(conn),
   kek: process.env.CORSAIR_KEK!,
   multiTenancy: true
 });
