@@ -242,13 +242,13 @@ export const emailRouter = createTRPCRouter({
         const lastMsg = threadRes.messages[threadRes.messages.length - 1];
         const headers = lastMsg.payload?.headers || [];
         
-        const unsub = headers.find((h: any) => h.name.toLowerCase() === "list-unsubscribe");
-        if (unsub) listUnsubscribeHeader = unsub.value;
+        const unsub = headers.find((h: any) => h.name?.toLowerCase() === "list-unsubscribe");
+        if (unsub && unsub.value) listUnsubscribeHeader = unsub.value;
 
-        const from = headers.find((h: any) => h.name.toLowerCase() === "from");
-        if (from) {
+        const from = headers.find((h: any) => h.name?.toLowerCase() === "from");
+        if (from && from.value) {
           const match = from.value.match(/<([^>]+)>/);
-          if (match) senderEmail = match[1];
+          if (match && match[1]) senderEmail = match[1];
           else senderEmail = from.value;
         }
       }

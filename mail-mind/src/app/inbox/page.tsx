@@ -639,18 +639,20 @@ export default function InboxPage() {
 
   if (activeThread && threadDetails?.messages && threadDetails.messages.length > 0) {
     const firstMsg = threadDetails.messages[0];
-    const headers = firstMsg.payload?.headers || [];
-    const fromHeader = headers.find((h: any) => h.name.toLowerCase() === "from");
-    if (fromHeader) {
-      const match = fromHeader.value.match(/(.*?)\s*<(.+?)>/);
-      if (match) {
-        activeSenderName = match[1].replace(/"/g, "").trim() || match[2].split('@')[0];
-        activeSenderEmail = match[2];
-      } else {
-        activeSenderName = fromHeader.value.split('@')[0];
-        activeSenderEmail = fromHeader.value;
+    if (firstMsg) {
+      const headers = firstMsg.payload?.headers || [];
+      const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === "from");
+      if (fromHeader && fromHeader.value) {
+        const match = fromHeader.value.match(/(.*?)\s*<(.+?)>/);
+        if (match && match[2]) {
+          activeSenderName = (match[1] || "").replace(/"/g, "").trim() || match[2].split('@')[0] || "Unknown";
+          activeSenderEmail = match[2];
+        } else {
+          activeSenderName = fromHeader.value.split('@')[0] || "Unknown";
+          activeSenderEmail = fromHeader.value;
+        }
+        activeSenderInitial = activeSenderName.charAt(0).toUpperCase() || "U";
       }
-      activeSenderInitial = activeSenderName.charAt(0).toUpperCase();
     }
   } else if (activeThread) {
     activeSenderInitial = String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26));
