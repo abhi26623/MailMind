@@ -1,7 +1,9 @@
 import { SignInButton, SignOutButton } from "@/app/_components/auth-buttons";
 import { getSession } from "@/server/better-auth/server";
 import { HydrateClient } from "@/trpc/server";
+import { FadeIn } from "@/app/_components/fade-in";
 import Link from "next/link";
+import Image from "next/image";
 
 export default async function Home() {
   const session = await getSession();
@@ -50,7 +52,7 @@ export default async function Home() {
           {/* Subtle wheat glow */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-wheat-100 blur-[100px] rounded-full pointer-events-none -z-10" />
           
-          <div className="text-center max-w-4xl mx-auto z-10 animate-fade-in-up flex flex-col items-center">
+          <FadeIn className="text-center max-w-4xl mx-auto z-10 flex flex-col items-center">
             <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-cream-100/50 border border-olive-300/30 text-xs font-bold text-olive-600 mb-8 shadow-sm">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
               <span>MailMind Early Access</span>
@@ -73,167 +75,56 @@ export default async function Home() {
                 <SignInButton className="w-full sm:w-auto px-10 py-4 text-base font-bold bg-forest-900 hover:bg-forest-800 text-cream-100 rounded-xl shadow-xl shadow-forest-900/20 transition-all hover:-translate-y-1" />
               )}
             </div>
-          </div>
+          </FadeIn>
 
-          {/* CSS INBOX MOCKUP (Image 2 style) with 3D Tilt */}
-          <div className="mt-20 w-full max-w-[1100px] mx-auto animate-fade-in-up perspective-1000" style={{ animationDelay: '0.2s' }}>
-            <div className="relative rounded-2xl border border-forest-900/10 bg-[#FAFAFA] shadow-[0_30px_60px_-15px_rgba(26,35,26,0.15)] overflow-hidden flex h-[600px] tilt-card transition-transform duration-500 ease-out preserve-3d">
-              
-              {/* Fake Sidebar */}
-              <div className="w-64 bg-white border-r border-forest-900/5 flex flex-col p-4 hidden md:flex">
-                <div className="flex items-center gap-3 mb-8 px-2 mt-2">
-                  <div className="w-8 h-8 rounded-full bg-forest-900 flex items-center justify-center font-bold text-cream-100 text-xs">M</div>
-                  <div className="font-extrabold text-forest-950 text-sm">MailMind</div>
-                </div>
-                
-                {/* Compose Button */}
-                <div className="w-full h-12 bg-forest-900 rounded-xl flex items-center justify-center gap-2 text-cream-100 font-bold text-sm shadow-md mb-6 hover:scale-[1.02] transition-transform">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-                  Compose
-                </div>
-
-                <div className="space-y-1 flex-1">
-                  <div className="w-full h-10 hover:bg-forest-900/5 rounded-lg flex items-center px-4 text-xs font-bold text-forest-950 gap-3">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    Inbox
-                  </div>
-                  <div className="w-full h-10 hover:bg-forest-900/5 rounded-lg flex items-center px-4 text-xs font-bold text-forest-950/60 gap-3">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                    Favorite
-                  </div>
-                  <div className="w-full h-10 bg-cream-100/50 rounded-lg flex items-center px-4 text-xs font-bold text-forest-950 gap-3 text-amber-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Read Later
-                  </div>
-                </div>
+          {/* IMAGE MOCKUP with 3D Tilt */}
+          <FadeIn delay={200} className="mt-20 w-full max-w-[1200px] mx-auto perspective-1000">
+            <div className="relative rounded-2xl border border-forest-900/10 bg-white shadow-[0_30px_60px_-15px_rgba(26,35,26,0.15)] overflow-hidden flex h-auto tilt-card transition-transform duration-500 ease-out preserve-3d">
+              {/* Fallback styling for the image in case it's missing momentarily */}
+              <div className="w-full aspect-[16/9] bg-forest-50/50 flex items-center justify-center">
+                <img 
+                  src="/hero-inbox.png" 
+                  alt="MailMind Inbox Mockup" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    const parent = (e.target as HTMLImageElement).parentElement;
+                    if(parent) {
+                      parent.innerHTML = '<span class="text-forest-900/40 font-bold">Please add hero-inbox.png to the public/ folder</span>';
+                    }
+                  }}
+                />
               </div>
-
-              {/* Fake Thread List */}
-              <div className="w-full md:w-[350px] bg-white border-r border-forest-900/5 flex flex-col">
-                <div className="h-20 border-b border-forest-900/5 flex flex-col justify-center px-4 gap-2">
-                  <div className="font-bold text-forest-950 text-sm">ReadLater</div>
-                  <div className="w-full h-8 bg-forest-900/5 rounded-lg flex items-center px-3 text-[11px] font-medium text-forest-950/40">Search...</div>
-                </div>
-                <div className="flex-1 overflow-hidden p-3 space-y-2">
-                  {/* Item 1 */}
-                  <div className="p-3 border border-forest-900/5 rounded-xl bg-white">
-                    <div className="flex justify-between items-start mb-1 gap-2">
-                      <div className="w-8 h-8 rounded-full bg-cyan-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-xs">H</div>
-                      <div className="flex-1">
-                        <div className="w-3/4 h-3 bg-forest-950 rounded mb-1.5"></div>
-                        <div className="w-full h-2 bg-forest-950/20 rounded"></div>
-                      </div>
-                      <div className="px-1.5 border border-forest-900/20 rounded text-[8px] font-bold text-forest-950">LOW</div>
-                    </div>
-                  </div>
-                  
-                  {/* Item 2 - ACTIVE (Image 2 style) */}
-                  <div className="p-3 rounded-xl bg-forest-950 text-cream-100 shadow-lg transform scale-[1.02] transition-transform">
-                    <div className="flex justify-between items-start mb-1 gap-2">
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-xs">A</div>
-                      <div className="flex-1 mt-1">
-                        <div className="font-bold text-xs mb-1">Why not both 📈 Discover How</div>
-                        <div className="text-[10px] text-cream-100/60 line-clamp-1">Why not both 📈 Discover How</div>
-                        <div className="mt-3 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-forest-800 text-cream-100">OTHER</div>
-                      </div>
-                      <div className="px-1.5 border border-cream-100/30 rounded text-[8px] font-bold text-cream-100">LOW</div>
-                    </div>
-                  </div>
-
-                   {/* Item 3 */}
-                   <div className="p-3 border border-forest-900/5 rounded-xl bg-white">
-                    <div className="flex justify-between items-start mb-1 gap-2">
-                      <div className="w-8 h-8 rounded-full bg-blue-400 flex-shrink-0 flex items-center justify-center text-white font-bold text-xs">T</div>
-                      <div className="flex-1">
-                        <div className="w-2/3 h-3 bg-forest-950 rounded mb-1.5"></div>
-                        <div className="w-full h-2 bg-forest-950/20 rounded"></div>
-                      </div>
-                      <div className="px-1.5 border border-red-200 bg-red-50 rounded text-[8px] font-bold text-red-500">URGENT</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fake Email Body */}
-              <div className="flex-1 bg-[#FAFAFA] hidden lg:flex flex-col">
-                <div className="h-16 border-b border-forest-900/5 flex items-center justify-between px-6 bg-white">
-                   <div className="flex space-x-2">
-                     <div className="px-3 py-1.5 rounded-lg border border-forest-900/10 text-xs font-bold text-forest-950/70 flex items-center gap-1">
-                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg> Archive <kbd className="ml-1 text-[9px] bg-forest-900/5 px-1 rounded">E</kbd>
-                     </div>
-                   </div>
-                   <div className="px-4 py-1.5 rounded-lg bg-forest-900 text-cream-100 text-xs font-bold shadow-sm flex items-center gap-2">
-                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg> Reply
-                   </div>
-                </div>
-                
-                <div className="flex-1 p-6 flex gap-6 overflow-hidden">
-                  <div className="flex-1 bg-white border border-forest-900/5 rounded-xl shadow-sm p-8">
-                    <h2 className="text-2xl font-bold text-forest-950 mb-6">Why not both 📈 Discover How</h2>
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">A</div>
-                      <div>
-                        <div className="font-bold text-sm text-forest-950">Axis Mutual Fund</div>
-                        <div className="text-xs text-forest-950/50">To: me</div>
-                      </div>
-                    </div>
-                    <div className="w-full aspect-[4/3] bg-gradient-to-br from-forest-950 to-forest-800 rounded-xl mt-4 flex items-center justify-center text-white/20 font-bold text-2xl border-4 border-forest-950">
-                      HTML Content
-                    </div>
-                  </div>
-
-                  <div className="w-64 flex flex-col gap-4">
-                    {/* Weekly Digest Box */}
-                    <div className="bg-white border border-forest-900/5 rounded-xl p-4 shadow-sm">
-                      <div className="text-[10px] font-bold text-forest-950 flex items-center justify-between mb-3 uppercase tracking-wider">
-                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Weekly Digest</span>
-                        <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Generate</span>
-                      </div>
-                      <div className="text-xs text-blue-600 font-medium">Click Generate to create a summary of your Read Later queue.</div>
-                    </div>
-
-                    {/* AI Insight Box */}
-                    <div className="bg-white border border-forest-900/5 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-forest-900"></div>
-                      <div className="text-[10px] font-bold text-forest-950 flex items-center justify-between mb-3 uppercase tracking-wider pl-2">
-                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-forest-500"></span> AI Insight</span>
-                        <span className="text-cream-100 bg-forest-900 px-1.5 py-0.5 rounded">LOW</span>
-                      </div>
-                      <p className="text-xs text-forest-950 font-bold mb-2 pl-2">This email contains a vague subject and snippet with a lot of whitespace, likely a promotional or spam message.</p>
-                      <p className="text-[10px] text-forest-950/50 italic pl-2 border-l-2 border-forest-900/10 ml-2">"The email lacks a clear subject and content, making it unlikely to require a reply or further action."</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
             </div>
-          </div>
+          </FadeIn>
         </section>
 
         {/* LIFE IMPACT (BENEFITS) */}
-        <section className="py-24 px-6 max-w-4xl mx-auto text-center animate-fade-in-up">
-          <h2 className="text-4xl md:text-6xl font-extrabold tracking-tighter text-forest-950 mb-16">
-            Stop managing email.<br/><span className="text-olive-400">Start living.</span>
-          </h2>
+        <section className="py-24 px-6 max-w-4xl mx-auto text-center">
+          <FadeIn>
+            <h2 className="text-4xl md:text-6xl font-extrabold tracking-tighter text-forest-950 mb-16">
+              Stop managing email.<br/><span className="text-olive-400">Start living.</span>
+            </h2>
+          </FadeIn>
           <div className="grid md:grid-cols-3 gap-12 text-left">
-            <div>
+            <FadeIn delay={100}>
               <h3 className="text-lg font-bold text-forest-950 mb-3">Reclaim Time</h3>
               <p className="text-sm text-forest-950/60 leading-relaxed font-medium">
                 Clear your inbox before your coffee gets cold. Autonomous triage ensures you only read what matters.
               </p>
-            </div>
-            <div>
+            </FadeIn>
+            <FadeIn delay={200}>
               <h3 className="text-lg font-bold text-forest-950 mb-3">Zero Anxiety</h3>
               <p className="text-sm text-forest-950/60 leading-relaxed font-medium">
                 Never miss a meeting or forget a follow-up. The AI remembers thread context so you don't have to.
               </p>
-            </div>
-            <div>
+            </FadeIn>
+            <FadeIn delay={300}>
               <h3 className="text-lg font-bold text-forest-950 mb-3">Total Control</h3>
               <p className="text-sm text-forest-950/60 leading-relaxed font-medium">
                 Nothing sends without your approval. You remain the pilot; MailMind is your co-pilot.
               </p>
-            </div>
+            </FadeIn>
           </div>
         </section>
 
@@ -241,69 +132,77 @@ export default async function Home() {
         <section id="features" className="py-32 px-6 max-w-6xl mx-auto border-t border-forest-900/5 relative">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-transparent to-forest-900/10" />
           
-          <div className="mb-20 text-center">
+          <FadeIn className="mb-20 text-center">
             <h2 className="text-4xl md:text-5xl font-extrabold tracking-tighter text-forest-950">Precision engineered.</h2>
             <p className="text-forest-950/50 mt-4 text-lg font-medium">Stripped of noise, built for speed.</p>
-          </div>
+          </FadeIn>
 
           <div className="grid md:grid-cols-2 gap-8 perspective-1000">
-            {/* Feature 1 - Glow Box */}
-            <div className="glow-box-container group h-full">
-              <div className="glow-box-inner bg-white p-10 rounded-[2rem] h-full flex flex-col">
-                <div className="w-12 h-12 rounded-xl bg-forest-900 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-md">
-                  <svg className="w-6 h-6 text-cream-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+            <FadeIn delay={100} className="h-full">
+              {/* Feature 1 - Glow Box */}
+              <div className="glow-box-container group h-full">
+                <div className="glow-box-inner bg-white p-10 rounded-[2rem] h-full flex flex-col">
+                  <div className="w-12 h-12 rounded-xl bg-forest-900 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-md">
+                    <svg className="w-6 h-6 text-cream-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-forest-950 mb-3">Auto-Triage</h3>
+                  <p className="text-base text-forest-950/60 leading-relaxed font-medium">
+                    Priority that sorts itself. Urgent matters surface; newsletters wait. Your attention is preserved for actual work.
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-forest-950 mb-3">Auto-Triage</h3>
-                <p className="text-base text-forest-950/60 leading-relaxed font-medium">
-                  Priority that sorts itself. Urgent matters surface; newsletters wait. Your attention is preserved for actual work.
-                </p>
               </div>
-            </div>
+            </FadeIn>
 
-            {/* Feature 2 - Glow Box */}
-            <div className="glow-box-container group h-full">
-              <div className="glow-box-inner bg-white p-10 rounded-[2rem] h-full flex flex-col">
-                <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-md shadow-amber-500/20">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            <FadeIn delay={200} className="h-full">
+              {/* Feature 2 - Glow Box */}
+              <div className="glow-box-container group h-full">
+                <div className="glow-box-inner bg-white p-10 rounded-[2rem] h-full flex flex-col">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-md shadow-amber-500/20">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-forest-950 mb-3">AI Drafting</h3>
+                  <p className="text-base text-forest-950/60 leading-relaxed font-medium">
+                    Hit 'Reply' and let the agent draft the perfect response based on context. Edit, approve, and move on.
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-forest-950 mb-3">AI Drafting</h3>
-                <p className="text-base text-forest-950/60 leading-relaxed font-medium">
-                  Hit 'Reply' and let the agent draft the perfect response based on context. Edit, approve, and move on.
-                </p>
               </div>
-            </div>
+            </FadeIn>
 
-            {/* Feature 3 - Glow Box */}
-            <div className="glow-box-container group h-full">
-              <div className="glow-box-inner bg-white p-10 rounded-[2rem] h-full flex flex-col">
-                <div className="w-12 h-12 rounded-xl bg-olive-600 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-md shadow-olive-600/20">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <FadeIn delay={300} className="h-full">
+              {/* Feature 3 - Glow Box */}
+              <div className="glow-box-container group h-full">
+                <div className="glow-box-inner bg-white p-10 rounded-[2rem] h-full flex flex-col">
+                  <div className="w-12 h-12 rounded-xl bg-olive-600 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300 shadow-md shadow-olive-600/20">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-forest-950 mb-3">Unified Calendar</h3>
+                  <p className="text-base text-forest-950/60 leading-relaxed font-medium">
+                    Schedule syncs directly from a thread. No tab switching required. Invites, updates, and emails belong together.
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-forest-950 mb-3">Unified Calendar</h3>
-                <p className="text-base text-forest-950/60 leading-relaxed font-medium">
-                  Schedule syncs directly from a thread. No tab switching required. Invites, updates, and emails belong together.
-                </p>
               </div>
-            </div>
+            </FadeIn>
 
-            {/* Feature 4 - Glow Box */}
-            <div className="glow-box-container group h-full">
-              <div className="glow-box-inner bg-forest-950 p-10 rounded-[2rem] h-full flex flex-col text-cream-100">
-                <div className="w-12 h-12 rounded-xl bg-cream-100/10 border border-cream-100/20 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300">
-                  <svg className="w-6 h-6 text-cream-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+            <FadeIn delay={400} className="h-full">
+              {/* Feature 4 - Glow Box */}
+              <div className="glow-box-container group h-full">
+                <div className="glow-box-inner bg-forest-950 p-10 rounded-[2rem] h-full flex flex-col text-cream-100">
+                  <div className="w-12 h-12 rounded-xl bg-cream-100/10 border border-cream-100/20 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300">
+                    <svg className="w-6 h-6 text-cream-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3">Keyboard Native</h3>
+                  <p className="text-base text-cream-100/60 leading-relaxed font-medium">
+                    Press <kbd className="font-mono bg-cream-100/10 px-1.5 py-0.5 rounded text-xs">E</kbd> to archive, <kbd className="font-mono bg-cream-100/10 px-1.5 py-0.5 rounded text-xs">R</kbd> to reply. Use <kbd className="font-mono bg-cream-100/10 px-1.5 py-0.5 rounded text-xs">Cmd+K</kbd> to navigate anywhere.
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold mb-3">Keyboard Native</h3>
-                <p className="text-base text-cream-100/60 leading-relaxed font-medium">
-                  Press <kbd className="font-mono bg-cream-100/10 px-1.5 py-0.5 rounded text-xs">E</kbd> to archive, <kbd className="font-mono bg-cream-100/10 px-1.5 py-0.5 rounded text-xs">R</kbd> to reply. Use <kbd className="font-mono bg-cream-100/10 px-1.5 py-0.5 rounded text-xs">Cmd+K</kbd> to navigate anywhere.
-                </p>
               </div>
-            </div>
+            </FadeIn>
           </div>
         </section>
 
         {/* AGENT MAGIC SECTION */}
         <section id="agent" className="py-32 px-6 border-t border-forest-900/5 bg-cream-100/20">
-          <div className="max-w-4xl mx-auto text-center">
+          <FadeIn className="max-w-4xl mx-auto text-center">
             <h2 className="text-4xl md:text-5xl font-extrabold tracking-tighter text-forest-950 mb-6">
               Command it in plain English.
             </h2>
@@ -329,43 +228,47 @@ export default async function Home() {
                 <span className="text-cream-100 font-bold">Awaiting your approval to schedule.</span>
               </div>
             </div>
-          </div>
+          </FadeIn>
         </section>
 
         {/* FAQ SECTION */}
         <section id="faq" className="py-32 px-6 max-w-3xl mx-auto border-t border-forest-900/5">
-          <h2 className="text-4xl font-extrabold tracking-tighter text-forest-950 mb-12">Frequently asked questions.</h2>
+          <FadeIn>
+            <h2 className="text-4xl font-extrabold tracking-tighter text-forest-950 mb-12">Frequently asked questions.</h2>
+          </FadeIn>
           
           <div className="space-y-8">
-            <div className="border-b border-forest-900/5 pb-8 group">
+            <FadeIn delay={100} className="border-b border-forest-900/5 pb-8 group">
               <h4 className="text-lg font-bold text-forest-950 mb-3 group-hover:text-amber-600 transition-colors">Is my data secure?</h4>
               <p className="text-base text-forest-950/60 font-medium leading-relaxed">Yes. Tokens are encrypted per-tenant, and the AI only reads the emails you explicitly search or ask it to process. Your inbox data is never used to train our models.</p>
-            </div>
-            <div className="border-b border-forest-900/5 pb-8 group">
+            </FadeIn>
+            <FadeIn delay={200} className="border-b border-forest-900/5 pb-8 group">
               <h4 className="text-lg font-bold text-forest-950 mb-3 group-hover:text-amber-600 transition-colors">Does it send emails automatically?</h4>
               <p className="text-base text-forest-950/60 font-medium leading-relaxed">No. MailMind operates as a co-pilot. It will draft replies, calendar events, and follow-ups, but everything requires a single click of approval from you before executing.</p>
-            </div>
-            <div className="border-b border-forest-900/5 pb-8 group">
+            </FadeIn>
+            <FadeIn delay={300} className="border-b border-forest-900/5 pb-8 group">
               <h4 className="text-lg font-bold text-forest-950 mb-3 group-hover:text-amber-600 transition-colors">What accounts are supported?</h4>
               <p className="text-base text-forest-950/60 font-medium leading-relaxed">Currently, MailMind is deeply integrated with Gmail and Google Calendar via Corsair to provide the fastest, most reliable experience possible.</p>
-            </div>
+            </FadeIn>
           </div>
         </section>
 
         {/* FINAL CTA */}
         <section className="py-32 px-6 text-center border-t border-forest-900/5 bg-[#FAFAFA]">
-          <h2 className="text-5xl md:text-6xl font-extrabold tracking-tighter text-forest-950 mb-10">
-            Ready to upgrade your workflow?
-          </h2>
-          <div className="flex justify-center">
-            {session ? (
-              <Link href="/inbox" className="px-10 py-4 text-base font-bold bg-forest-900 hover:bg-forest-800 text-cream-100 rounded-xl shadow-xl shadow-forest-900/20 transition-all hover:-translate-y-1">
-                Launch Workspace
-              </Link>
-            ) : (
-              <SignInButton className="px-10 py-4 text-base font-bold bg-forest-900 hover:bg-forest-800 text-cream-100 rounded-xl shadow-xl shadow-forest-900/20 transition-all hover:-translate-y-1" />
-            )}
-          </div>
+          <FadeIn>
+            <h2 className="text-5xl md:text-6xl font-extrabold tracking-tighter text-forest-950 mb-10">
+              Ready to upgrade your workflow?
+            </h2>
+            <div className="flex justify-center">
+              {session ? (
+                <Link href="/inbox" className="px-10 py-4 text-base font-bold bg-forest-900 hover:bg-forest-800 text-cream-100 rounded-xl shadow-xl shadow-forest-900/20 transition-all hover:-translate-y-1">
+                  Launch Workspace
+                </Link>
+              ) : (
+                <SignInButton className="px-10 py-4 text-base font-bold bg-forest-900 hover:bg-forest-800 text-cream-100 rounded-xl shadow-xl shadow-forest-900/20 transition-all hover:-translate-y-1" />
+              )}
+            </div>
+          </FadeIn>
         </section>
 
         {/* FOOTER */}
@@ -390,7 +293,7 @@ export default async function Home() {
 
       {/* Global Styles for Custom Animations */}
       <style dangerouslySetInnerHTML={{__html: `
-        /* Fade Up */
+        /* Fade Up (for non-scroll elements like hero) */
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(30px); }
           to { opacity: 1; transform: translateY(0); }
