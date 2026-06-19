@@ -71,6 +71,27 @@ export default function InboxPage() {
   const calendarConnected = !!status?.googlecalendar?.connected;
   const gmailError = status?.gmail?.error;
   const calendarError = status?.googlecalendar?.error;
+
+  const [activeFolder, setActiveFolder] = useState<string>("inbox");
+
+  const queryLabelIds = useMemo(() => {
+    switch (activeFolder) {
+      case "inbox": return ["INBOX"];
+      case "drafts": return ["DRAFT"];
+      case "sent": return ["SENT"];
+      case "favorite": return ["STARRED"];
+      case "trash": return ["TRASH"];
+      default: return undefined;
+    }
+  }, [activeFolder]);
+
+  const queryQ = useMemo(() => {
+    switch (activeFolder) {
+      case "archive": return "-in:inbox -in:trash";
+      default: return undefined;
+    }
+  }, [activeFolder]);
+
   const { 
     data, 
     isLoading, 
@@ -79,7 +100,10 @@ export default function InboxPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage
-  } = api.email.threads.useInfiniteQuery({}, {
+  } = api.email.threads.useInfiniteQuery({
+    labelIds: queryLabelIds,
+    q: queryQ,
+  }, {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     refetchOnWindowFocus: false,
     enabled: seeded,
@@ -364,6 +388,9 @@ export default function InboxPage() {
   // Handle category selection
   const handleCategorySelect = (category: string | null) => {
     setActiveCategory(category);
+    if (category) {
+      setActiveFolder("inbox");
+    }
     setSelectedIndex(0);
   };
 
@@ -589,27 +616,27 @@ export default function InboxPage() {
 
             {/* Core Folders */}
             <div className="space-y-1 w-full flex flex-col items-start">
-              <button onClick={() => handleCategorySelect(null)} className={`py-3 ${!activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("inbox"); }} className={`py-3 ${activeFolder === "inbox" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Inbox</span>}
               </button>
-              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("drafts"); }} className={`py-3 ${activeFolder === "drafts" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Drafts</span>}
               </button>
-              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("sent"); }} className={`py-3 ${activeFolder === "sent" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Sent</span>}
               </button>
-              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("archive"); }} className={`py-3 ${activeFolder === "archive" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Archive</span>}
               </button>
-              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("favorite"); }} className={`py-3 ${activeFolder === "favorite" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Favorite</span>}
               </button>
-              <button className={`py-3 text-forest-600 hover:bg-white/60 hover:text-forest-950 rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("trash"); }} className={`py-3 ${activeFolder === "trash" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Trash</span>}
               </button>
@@ -657,7 +684,7 @@ export default function InboxPage() {
         >
           <div className="p-4 border-b border-forest-900/10 bg-white sticky top-0 z-10 flex flex-col space-y-3">
             <div className="flex justify-between items-center">
-              <h2 className="font-bold text-sm text-slate-800">{activeCategory ? activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1) : "Inbox"}</h2>
+              <h2 className="font-bold text-sm text-slate-800">{activeCategory ? activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1) : activeFolder.charAt(0).toUpperCase() + activeFolder.slice(1)}</h2>
               <div className="flex items-center gap-2">
                 {activeCategory && (
                   <button onClick={() => handleCategorySelect(null)} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 transition-colors">

@@ -41,16 +41,28 @@ export const emailRouter = createTRPCRouter({
 
   /** Fetch threads with pagination (infinite scrolling). */
   threads: protectedProcedure
-    .input(z.object({ cursor: z.string().nullish() }).optional())
+    .input(z.object({ 
+      cursor: z.string().nullish(),
+      labelIds: z.array(z.string()).optional(),
+      q: z.string().optional()
+    }).optional())
     .query(async ({ ctx, input }) => {
       try {
+        const listParams: any = { 
+          maxResults: 20, 
+          userId: "me",
+          pageToken: input?.cursor ?? undefined
+        };
+        if (input?.labelIds && input.labelIds.length > 0) {
+          listParams.labelIds = input.labelIds;
+        }
+        if (input?.q) {
+          listParams.q = input.q;
+        }
+
         const res = await corsair
           .withTenant(ctx.tenantId)
-          .gmail.api.threads.list({ 
-            maxResults: 20, 
-            userId: "me",
-            pageToken: input?.cursor ?? undefined
-          });
+          .gmail.api.threads.list(listParams);
         return {
           threads: res.threads || [],
           nextCursor: res.nextPageToken || null,
