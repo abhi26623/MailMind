@@ -78,6 +78,7 @@ export default function InboxPage() {
   const queryLabelIds = useMemo(() => {
     switch (activeFolder) {
       case "inbox": return ["INBOX"];
+      case "unread": return ["UNREAD"];
       case "drafts": return ["DRAFT"];
       case "sent": return ["SENT"];
       case "favorite": return ["STARRED"];
@@ -591,6 +592,13 @@ export default function InboxPage() {
             </svg>
           </Link>
           <button
+            onClick={() => setShowCheatsheet(true)}
+            className="p-2.5 hover:bg-white/50 text-forest-600 hover:text-forest-950 border border-transparent rounded-xl transition-all"
+            title="Shortcuts (?)"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </button>
+          <button
             onClick={() => {
               void refetch();
               if (calendarConnected) void refetchCalendar();
@@ -620,6 +628,10 @@ export default function InboxPage() {
               <button onClick={() => { handleCategorySelect(null); setActiveFolder("inbox"); }} className={`py-3 ${activeFolder === "inbox" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                 {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Inbox</span>}
+              </button>
+              <button onClick={() => { handleCategorySelect(null); setActiveFolder("unread"); }} className={`py-3 ${activeFolder === "unread" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Unread</span>}
               </button>
               <button onClick={() => { handleCategorySelect(null); setActiveFolder("drafts"); }} className={`py-3 ${activeFolder === "drafts" && !activeCategory ? "bg-wheat-100 text-wheat-700" : "text-forest-600 hover:bg-white/60 hover:text-forest-950"} rounded-xl w-full flex items-center ${isSidebarOpen ? "justify-start px-4" : "justify-center"} group/btn transition-all`}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -667,10 +679,6 @@ export default function InboxPage() {
           </div>
           
           <div className="w-full px-3 mt-auto mb-4 space-y-2">
-            <button onClick={() => setShowCheatsheet(true)} className={`py-3 text-forest-400 hover:text-forest-700 hover:bg-white/60 rounded-xl transition-all flex items-center w-full ${isSidebarOpen ? "justify-start px-4" : "justify-center"}`} title="Shortcuts (?)">
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Shortcuts</span>}
-            </button>
             <button onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => router.push("/") } })} className={`py-3 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all flex items-center w-full ${isSidebarOpen ? "justify-start px-4" : "justify-center"}`} title="Sign Out">
               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               {isSidebarOpen && <span className="ml-4 font-semibold text-xs whitespace-nowrap">Sign Out</span>}
@@ -692,9 +700,6 @@ export default function InboxPage() {
                     Clear
                   </button>
                 )}
-                <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 border border-slate-200 font-medium shadow-sm">
-                  {filteredThreads.length} total
-                </span>
               </div>
             </div>
             <div className="relative">
