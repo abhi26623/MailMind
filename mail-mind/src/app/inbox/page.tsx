@@ -672,14 +672,14 @@ export default function InboxPage() {
 
       {/* Top Header */}
       <header className="bg-white flex-shrink-0 sticky top-0 z-40 px-8 py-3 flex justify-between items-center border-b border-forest-900/5">
-        <div className="flex items-center space-x-3">
+        <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
           <div className="w-9 h-9 bg-gradient-to-tr from-blue-500 to-blue-700 rounded-xl flex items-center justify-center font-bold text-white shadow-md">
             M
           </div>
           <span className="font-extrabold tracking-tight text-xl text-forest-950">
             MailMind
           </span>
-        </div>
+        </Link>
 
         <div className="flex items-center space-x-4">
           <Link
