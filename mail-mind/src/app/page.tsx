@@ -2,6 +2,7 @@ import { SignInButton, SignOutButton } from "@/app/_components/auth-buttons";
 import { getSession } from "@/server/better-auth/server";
 import { HydrateClient } from "@/trpc/server";
 import { FadeIn } from "@/app/_components/fade-in";
+import { TiltCard } from "@/app/_components/tilt-card";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -78,17 +79,19 @@ export default async function Home() {
           </FadeIn>
 
           {/* IMAGE MOCKUP with 3D Tilt */}
-          <FadeIn delay={200} className="mt-20 w-full max-w-[1200px] mx-auto perspective-1000">
-            <div className="relative rounded-2xl border border-forest-900/10 bg-white shadow-[0_30px_60px_-15px_rgba(26,35,26,0.15)] overflow-hidden flex h-auto tilt-card transition-transform duration-500 ease-out preserve-3d">
-              {/* Fallback styling for the image in case it's missing momentarily */}
-              <div className="w-full aspect-[16/9] bg-forest-50/50 flex items-center justify-center">
+          <FadeIn delay={200} className="mt-20 w-full max-w-[1100px] mx-auto">
+            <TiltCard>
+              <div className="relative w-full rounded-2xl overflow-hidden bg-white flex items-start justify-center pt-2 px-2">
                 <img 
                   src="/hero-inbox.png" 
                   alt="MailMind Inbox Mockup" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto object-contain object-top rounded-xl border border-forest-900/5 shadow-sm"
+                  style={{ maxHeight: '70vh' }}
                 />
+                {/* Fade at bottom of the image */}
+                <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-white to-transparent pointer-events-none" />
               </div>
-            </div>
+            </TiltCard>
           </FadeIn>
         </section>
 
