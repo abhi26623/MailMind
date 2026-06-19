@@ -182,15 +182,37 @@ function parseScriptForDraft(script: string): DraftInfo {
   }
 
   if (isEmail) {
-    // Extract headers from the array literal: "To: ...", "Subject: ..."
-    const to = script.match(/["']To:\s*([^"']+)["']/)?.[1]?.trim() ?? ''
-    const subject = script.match(/["']Subject:\s*([^"']+)["']/)?.[1]?.trim() ?? ''
-    // Extract body: lines after the empty string separator in the array
-    const arrayContent = script.match(/\[([^\[\]]*)\]/)?.[1] ?? ''
-    const lines = [...arrayContent.matchAll(/["']([^"']*?)["']/g)].map(m => m[1] ?? '')
-    const emptyIdx = lines.findIndex(l => l.trim() === '')
-    const bodyLines = emptyIdx >= 0 ? lines.slice(emptyIdx + 1) : []
-    const body = bodyLines.join('\n').replace(/\\n/g, '\n').trim()
+    const to = script.match(/To:\s*([^"'\r\n\\]+)/i)?.[1]?.trim() ?? ''
+    const subject = script.match(/Subject:\s*([^"'\r\n\\]+)/i)?.[1]?.trim() ?? ''
+    
+    let body = ''
+    
+    const arrayMatch = script.match(/\[([\s\S]*?)\]\.join/)
+    if (arrayMatch) {
+      const lines = [...arrayMatch[1].matchAll(/["'\`](.*?)["'\`]/gs)].map(m => m[1] ?? '')
+      const emptyIdx = lines.findIndex(l => l.trim() === '')
+      if (emptyIdx >= 0) {
+         body = lines.slice(emptyIdx + 1).join('\n')
+      } else if (lines.length > 2) {
+         body = lines.slice(2).join('\n')
+      }
+    }
+    
+    if (!body) {
+      const parts = script.split(/(?:MIME-Version:[^\n]*|Content-Type:[^\n]*|Subject:[^\n]*)(?:\r?\n){2,}/i)
+      if (parts.length > 1) {
+         body = parts[1].split(/["'\`]/)[0].trim()
+      } else {
+         const rawMatch = script.match(/Buffer\.from\(['"\`]?([\s\S]*?)['"\`]?\)/i)
+         if (rawMatch) {
+            const lines = rawMatch[1].split(/\\r\\n|\\n|\r\n|\n/)
+            const emptyIdx = lines.findIndex(l => l.trim() === '')
+            if (emptyIdx >= 0) body = lines.slice(emptyIdx + 1).join('\n')
+         }
+      }
+    }
+
+    body = body.replace(/\\n/g, '\n').replace(/\\r/g, '').trim()
     email = { to, subject, body }
   }
 
@@ -224,21 +246,21 @@ function ScriptConfirmBox({
   const draft = parseScriptForDraft(script)
 
   return (
-    <div className="mt-2 w-full max-w-lg rounded-2xl border border-wheat-500/30 bg-forest-900/90 overflow-hidden shadow-lg shadow-wheat-500/5 animate-slide-up">
+    <div className="mt-2 w-full max-w-lg rounded-2xl border border-blue-100 bg-white overflow-hidden shadow-md shadow-blue-500/5 animate-slide-up">
 
       {/* ── Meeting card ── */}
       {draft.meeting && (
-        <div className="px-4 pt-4 pb-3 border-b border-forest-700/50">
+        <div className="px-4 pt-4 pb-3 border-b border-slate-100">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-wheat-500/15 text-base">📅</div>
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-base">📅</div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm text-cream-100 truncate">{draft.meeting.summary}</p>
-              <p className="text-xs text-olive-400 mt-0.5">
+              <p className="font-bold text-sm text-slate-800 truncate">{draft.meeting.summary}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
                 {formatIST(draft.meeting.start)}
                 {draft.meeting.end && ` → ${new Date(draft.meeting.end).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}`}
               </p>
               {draft.meeting.attendees.filter(Boolean).map(a => (
-                <p key={a} className="text-xs text-blue-500/80 mt-1 truncate">👤 {a}</p>
+                <p key={a} className="text-xs text-blue-500 mt-1 truncate">👤 {a}</p>
               ))}
             </div>
           </div>
@@ -247,19 +269,19 @@ function ScriptConfirmBox({
 
       {/* ── Email card ── */}
       {draft.email && (
-        <div className="px-4 pt-3 pb-3 border-b border-forest-700/50">
+        <div className="px-4 pt-3 pb-3 border-b border-slate-100">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-olive-600/20 text-base">✉️</div>
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-base">✉️</div>
             <div className="flex-1 min-w-0 space-y-1">
               {draft.email.to && (
-                <p className="text-xs text-olive-400"><span className="text-olive-600">To:</span> <span className="text-cream-200">{draft.email.to}</span></p>
+                <p className="text-xs text-slate-500"><span className="text-slate-400">To:</span> <span className="text-slate-700 font-medium">{draft.email.to}</span></p>
               )}
               {draft.email.subject && (
-                <p className="text-xs text-olive-400"><span className="text-olive-600">Subject:</span> <span className="text-cream-200">{draft.email.subject}</span></p>
+                <p className="text-xs text-slate-500"><span className="text-slate-400">Subject:</span> <span className="text-slate-700 font-medium">{draft.email.subject}</span></p>
               )}
               {draft.email.body && (
-                <div className="mt-2 rounded-lg bg-forest-950/60 border border-forest-700/40 px-3 py-2">
-                  <p className="text-xs text-cream-300 whitespace-pre-wrap leading-relaxed">{draft.email.body}</p>
+                <div className="mt-2 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{draft.email.body}</p>
                 </div>
               )}
             </div>
@@ -269,17 +291,17 @@ function ScriptConfirmBox({
 
       {/* ── Unknown / fallback ── */}
       {draft.type === 'unknown' && (
-        <div className="px-4 py-3 border-b border-forest-700/50">
-          <p className="text-xs text-olive-400">⚙️ Action ready — review and confirm below.</p>
+        <div className="px-4 py-3 border-b border-slate-100">
+          <p className="text-xs text-slate-500">⚙️ Action ready — review and confirm below.</p>
         </div>
       )}
 
       {/* ── Action buttons ── */}
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className="flex items-center gap-2 px-4 py-3 bg-slate-50/50">
         <button
           onClick={() => onConfirm(script)}
           disabled={disabled}
-          className="flex items-center gap-1.5 rounded-xl bg-wheat-500 px-5 py-2.5 text-xs font-bold text-forest-950 shadow-md shadow-wheat-500/20 transition-all hover:bg-wheat-400 hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
+          className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-700 hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -289,7 +311,7 @@ function ScriptConfirmBox({
         <button
           onClick={onCancel}
           disabled={disabled}
-          className="rounded-xl border border-forest-700 bg-forest-800 px-4 py-2.5 text-xs font-semibold text-cream-200 transition-all hover:bg-forest-700 disabled:opacity-40"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-40"
         >
           Cancel
         </button>
@@ -512,7 +534,7 @@ export function AgentChat() {
                         m.role === 'user'
                           ? 'rounded-br-sm bg-blue-600 text-white'
                           : 'rounded-bl-sm bg-slate-100 text-slate-800'
-                      }`}
+                      } ${!m.content ? 'hidden' : ''}`}
                     >
                       {m.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{m.content}</p>
@@ -589,7 +611,7 @@ export function AgentChat() {
                   )}
 
                   {/* ── Action badges ── */}
-                  {m.actions && m.actions.length > 0 && (
+                  {m.actions && m.actions.length > 0 && !(m.requiresConfirmation && m.actions.includes('run_script')) && (
                     <div className="flex flex-wrap gap-1.5 px-1 mt-1">
                       {m.actions.map((action, j) => (
                         <span
