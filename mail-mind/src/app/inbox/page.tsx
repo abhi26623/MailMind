@@ -20,6 +20,7 @@ interface Thread {
     id: string;
     payload?: any;
     internalDate?: string;
+    labelIds?: string[];
   }>;
 }
 
