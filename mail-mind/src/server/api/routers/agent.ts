@@ -84,7 +84,7 @@ Only output the revised text. Do not include introductory or concluding phrases 
     .input(z.object({
       context: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .query(async ({ input }) => {
       const { openrouter, AGENT_MODELS } = await import("@/lib/ai");
       
       const systemPrompt = `You are an AI Email Assistant. 

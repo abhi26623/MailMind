@@ -634,10 +634,10 @@ export default function InboxPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F6F8] text-forest-950 flex flex-col font-sans relative">
-      {/* Toast Notification */}
+      {/* Global Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
-            ? "bg-emerald-50 border-emerald-500/20 text-emerald-600"
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
+            ? "bg-forest-900 text-cream-50 border-forest-700"
             : toast.type === "error"
               ? "bg-rose-50 border-rose-500/20 text-rose-600"
               : "bg-white border-forest-900/10 text-forest-900"
