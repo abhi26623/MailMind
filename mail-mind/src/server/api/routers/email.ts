@@ -240,16 +240,18 @@ export const emailRouter = createTRPCRouter({
       
       if (threadRes.messages && threadRes.messages.length > 0) {
         const lastMsg = threadRes.messages[threadRes.messages.length - 1];
-        const headers = lastMsg.payload?.headers || [];
-        
-        const unsub = headers.find((h: any) => h.name?.toLowerCase() === "list-unsubscribe");
-        if (unsub && unsub.value) listUnsubscribeHeader = unsub.value;
+        if (lastMsg) {
+          const headers = lastMsg.payload?.headers || [];
+          
+          const unsub = headers.find((h: any) => h.name?.toLowerCase() === "list-unsubscribe");
+          if (unsub && unsub.value) listUnsubscribeHeader = unsub.value;
 
-        const from = headers.find((h: any) => h.name?.toLowerCase() === "from");
-        if (from && from.value) {
-          const match = from.value.match(/<([^>]+)>/);
-          if (match && match[1]) senderEmail = match[1];
-          else senderEmail = from.value;
+          const from = headers.find((h: any) => h.name?.toLowerCase() === "from");
+          if (from && from.value) {
+            const match = from.value.match(/<([^>]+)>/);
+            if (match && match[1]) senderEmail = match[1];
+            else senderEmail = from.value;
+          }
         }
       }
 
@@ -268,8 +270,9 @@ export const emailRouter = createTRPCRouter({
           const raw = Buffer.from(headersStr).toString("base64url");
           try {
              await corsair.withTenant(ctx.tenantId).gmail.api.messages.send({ userId: "me", raw });
-          } catch(e) {
-             console.error("Failed to send mailto unsubscribe", e);
+             // In real app, we might wait to verify, or just assume it sent
+          } catch (e) {
+             console.error("Failed to fetch unsubscribe URL", e);
           }
         } else {
            const urlMatch = listUnsubscribeHeader.match(/<https?:\/\/([^>]+)>/);
@@ -296,9 +299,10 @@ export const emailRouter = createTRPCRouter({
             const messages = listRes.messages || [];
             if (messages.length > 0) {
                const ids = messages.map((m: any) => m.id);
-               await corsair.withTenant(ctx.tenantId).gmail.api.messages.batchTrash({
+               await corsair.withTenant(ctx.tenantId).gmail.api.messages.batchModify({
                   userId: "me",
-                  ids
+                  ids,
+                  addLabelIds: ["TRASH"]
                });
                deletedCount = ids.length;
             }
@@ -347,9 +351,11 @@ export const emailRouter = createTRPCRouter({
       for (const record of records) {
         try {
           const res = await corsair.withTenant(ctx.tenantId).gmail.api.threads.get({ userId: "me", id: record.threadId });
+          const msgs = res.messages;
+          const lastMsg = msgs && msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
           threads.push({
             ...res,
-            snippet: res.messages && res.messages.length > 0 ? res.messages[res.messages.length - 1].snippet : "(No content)"
+            snippet: lastMsg?.snippet || "(No content)"
           });
         } catch(e) {
           // Thread might be deleted in Gmail
@@ -372,8 +378,10 @@ export const emailRouter = createTRPCRouter({
       for (const record of records) {
         try {
           const res = await corsair.withTenant(ctx.tenantId).gmail.api.threads.get({ userId: "me", id: record.threadId });
-          if (res.messages && res.messages.length > 0) {
-             const snippet = res.messages[res.messages.length - 1].snippet || "";
+          const msgs = res.messages;
+          if (msgs && msgs.length > 0) {
+             const lastMsg = msgs[msgs.length - 1];
+             const snippet = lastMsg?.snippet || "";
              combinedContent += `Thread ID: ${record.threadId}\nSnippet: ${snippet}\n\n`;
           }
         } catch(e) {}

@@ -86,13 +86,6 @@ export default async function Home() {
                   src="/hero-inbox.png" 
                   alt="MailMind Inbox Mockup" 
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    const parent = (e.target as HTMLImageElement).parentElement;
-                    if(parent) {
-                      parent.innerHTML = '<span class="text-forest-900/40 font-bold">Please add hero-inbox.png to the public/ folder</span>';
-                    }
-                  }}
                 />
               </div>
             </div>
