@@ -278,14 +278,7 @@ export default function InboxPage() {
     onError: (err) => showToast(`Failed to generate digest: ${err.message}`, "error")
   });
 
-  // Smart Replies Query (Runs when active thread changes)
-  const { data: smartRepliesData } = api.agent.generateSmartReplies.useQuery(
-    { context: activeThread?.snippet || "" },
-    {
-      enabled: !!activeThread?.snippet && activeFolder !== "readLater",
-      staleTime: Infinity, // don't refetch on focus
-    }
-  );
+
 
   const smartReplyDraftMutation = api.agent.generateDraft.useMutation({
     onSuccess: (res) => {
@@ -299,6 +292,15 @@ export default function InboxPage() {
   // States
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [activeThread, setActiveThread] = useState<Thread | null>(null);
+
+  // Smart Replies Query (Runs when active thread changes)
+  const { data: smartRepliesData } = api.agent.generateSmartReplies.useQuery(
+    { context: activeThread?.snippet || "" },
+    {
+      enabled: !!activeThread?.snippet && activeFolder !== "readLater",
+      staleTime: Infinity, // don't refetch on focus
+    }
+  );
   const [showCheatsheet, setShowCheatsheet] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
