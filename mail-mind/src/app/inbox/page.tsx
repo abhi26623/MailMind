@@ -632,6 +632,30 @@ export default function InboxPage() {
     });
   };
 
+  // Extract sender details from active thread details
+  let activeSenderName = "Unknown Sender";
+  let activeSenderEmail = "unknown@example.com";
+  let activeSenderInitial = "U";
+
+  if (activeThread && threadDetails?.messages && threadDetails.messages.length > 0) {
+    const firstMsg = threadDetails.messages[0];
+    const headers = firstMsg.payload?.headers || [];
+    const fromHeader = headers.find((h: any) => h.name.toLowerCase() === "from");
+    if (fromHeader) {
+      const match = fromHeader.value.match(/(.*?)\s*<(.+?)>/);
+      if (match) {
+        activeSenderName = match[1].replace(/"/g, "").trim() || match[2].split('@')[0];
+        activeSenderEmail = match[2];
+      } else {
+        activeSenderName = fromHeader.value.split('@')[0];
+        activeSenderEmail = fromHeader.value;
+      }
+      activeSenderInitial = activeSenderName.charAt(0).toUpperCase();
+    }
+  } else if (activeThread) {
+    activeSenderInitial = String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26));
+  }
+
   return (
     <div className="h-screen overflow-hidden bg-[#F5F6F8] text-forest-950 flex flex-col font-sans relative">
       {/* Global Toast */}
@@ -1026,10 +1050,10 @@ export default function InboxPage() {
                     <div className="flex justify-between items-end mt-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                          {String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26))}
+                          {activeSenderInitial}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-800">Sender Name <span className="text-xs font-normal text-slate-500">&lt;sender@example.com&gt;</span></p>
+                          <p className="text-sm font-semibold text-slate-800">{activeSenderName} <span className="text-xs font-normal text-slate-500">&lt;{activeSenderEmail}&gt;</span></p>
                           <p className="text-xs text-slate-500">To: me</p>
                         </div>
                       </div>
