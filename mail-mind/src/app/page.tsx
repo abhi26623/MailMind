@@ -49,9 +49,13 @@ export default async function Home() {
         </nav>
 
         {/* HERO SECTION */}
-        <section className="relative pt-36 pb-24 px-6 flex flex-col items-center min-h-[90vh] overflow-hidden">
-          {/* Subtle wheat glow */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-wheat-100 blur-[100px] rounded-full pointer-events-none -z-10" />
+        <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+          {/* Animated Background Gradients */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+            <div className="absolute top-[10%] left-[20%] w-96 h-96 rounded-full bg-forest-500/10 blur-[120px] animate-blob" />
+            <div className="absolute top-[10%] right-[20%] w-96 h-96 rounded-full bg-wheat-500/15 blur-[120px] animate-blob animation-delay-2000" />
+            <div className="absolute bottom-[20%] left-[40%] w-[40rem] h-[40rem] rounded-full bg-olive-500/10 blur-[150px] animate-blob animation-delay-4000" />
+          </div>
           
           <FadeIn className="text-center max-w-4xl mx-auto z-10 flex flex-col items-center">
             <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-cream-100/50 border border-olive-300/30 text-xs font-bold text-olive-600 mb-8 shadow-sm">
