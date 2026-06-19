@@ -637,7 +637,7 @@ export default function InboxPage() {
       {/* Global Toast */}
       {toast && (
         <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 animate-slide-up ${toast.type === "success"
-            ? "bg-forest-900 text-cream-50 border-forest-700"
+            ? "bg-red-50 text-black border-red-400"
             : toast.type === "error"
               ? "bg-rose-50 border-rose-500/20 text-rose-600"
               : "bg-white border-forest-900/10 text-forest-900"
