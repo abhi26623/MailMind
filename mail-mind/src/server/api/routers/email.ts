@@ -1,6 +1,9 @@
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsair } from "@/server/corsair";
 import { z } from "zod";
+import { db } from "@/server/db";
+import { readLaterThreads } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export const emailRouter = createTRPCRouter({
   /**
@@ -305,6 +308,92 @@ export const emailRouter = createTRPCRouter({
       }
 
       return { success: true, deletedCount, listUnsubscribeFound: !!listUnsubscribeHeader };
+    }),
+
+  /** Toggle Read Later status for a thread. */
+  toggleReadLater: protectedProcedure
+    .input(z.object({ threadId: z.string(), isReadLater: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.isReadLater) {
+        await db.insert(readLaterThreads).values({
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          threadId: input.threadId,
+        }).onConflictDoNothing();
+      } else {
+        await db.delete(readLaterThreads).where(
+          and(
+            eq(readLaterThreads.tenantId, ctx.tenantId),
+            eq(readLaterThreads.threadId, input.threadId)
+          )
+        );
+      }
+      return { success: true };
+    }),
+
+  /** Get all Read Later threads from DB. */
+  getReadLaterThreads: protectedProcedure
+    .query(async ({ ctx }) => {
+      const records = await db.select()
+        .from(readLaterThreads)
+        .where(eq(readLaterThreads.tenantId, ctx.tenantId));
+        
+      if (records.length === 0) return { threads: [] };
+
+      // Fetch details from Gmail for these threads
+      // We can fetch them in parallel. Since the list might be long, we might just fetch the list or do batch get.
+      // But for simplicity, we just fetch each thread's snippet.
+      const threads = [];
+      for (const record of records) {
+        try {
+          const res = await corsair.withTenant(ctx.tenantId).gmail.api.threads.get({ userId: "me", id: record.threadId });
+          threads.push({
+            ...res,
+            snippet: res.messages && res.messages.length > 0 ? res.messages[res.messages.length - 1].snippet : "(No content)"
+          });
+        } catch(e) {
+          // Thread might be deleted in Gmail
+          console.error("Failed to fetch read later thread", record.threadId);
+        }
+      }
+      return { threads };
+    }),
+
+  /** Generate a Weekly Digest for Read Later threads. */
+  generateReadLaterDigest: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const records = await db.select()
+        .from(readLaterThreads)
+        .where(eq(readLaterThreads.tenantId, ctx.tenantId));
+
+      if (records.length === 0) return { digest: "No emails in your Read Later folder." };
+
+      let combinedContent = "";
+      for (const record of records) {
+        try {
+          const res = await corsair.withTenant(ctx.tenantId).gmail.api.threads.get({ userId: "me", id: record.threadId });
+          if (res.messages && res.messages.length > 0) {
+             const snippet = res.messages[res.messages.length - 1].snippet || "";
+             combinedContent += `Thread ID: ${record.threadId}\nSnippet: ${snippet}\n\n`;
+          }
+        } catch(e) {}
+      }
+
+      const { openrouter, AGENT_MODELS } = await import("@/lib/ai");
+      const systemPrompt = `You are an AI Email Assistant. 
+Generate a clean, bullet-pointed "Weekly Digest" summarizing the provided unread/read-later emails.
+Group them by topics if possible, or just list the most important points. Keep it highly readable and concise.`;
+
+      const llmRes = await openrouter.chat.completions.create({
+        model: AGENT_MODELS.geminiFlashLite.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: combinedContent.substring(0, 8000) },
+        ],
+        temperature: 0.3,
+      });
+
+      return { digest: llmRes.choices[0]?.message?.content || "Could not generate digest." };
     }),
 
   // Calendar

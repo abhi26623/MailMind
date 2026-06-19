@@ -151,3 +151,10 @@ export const emailEmbeddings = pgTable('email_embeddings', {
         embeddingIndex: index('embeddingIndex').using('hnsw', table.embedding.op('vector_cosine_ops')),
     };
 });
+
+export const readLaterThreads = pgTable('read_later_threads', {
+    id: text('id').primaryKey().notNull(),
+    tenantId: text('tenant_id').notNull(),
+    threadId: text('thread_id').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
