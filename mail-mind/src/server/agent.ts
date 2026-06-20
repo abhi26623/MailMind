@@ -149,6 +149,95 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
  * Wrap an LLM API call with retry logic for 429 and transient errors.
  * Attempts: 3 max. Backoff: 1s -> 2s -> 4s.
  */
+
+type CalendarConflictResult = {
+  content: string
+  suggestions: string[]
+}
+
+function extractCalendarCreateWindow(code: string) {
+  if (!code.includes('.googlecalendar.api.events.create(')) return null
+
+  const dateTimes = Array.from(code.matchAll(/dateTime\s*:\s*["\']([^"\']+)["\']/g)).map(match => match[1]).filter(Boolean)
+  if (dateTimes.length < 2) return null
+
+  const startIso = dateTimes[0]!
+  const endIso = dateTimes[1]!
+  const start = new Date(startIso)
+  const end = new Date(endIso)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null
+
+  const day = startIso.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+  if (!day) return null
+
+  const summary = code.match(/summary\s*:\s*["']([^"']+)["']/)?.[1] ?? 'Meeting'
+
+  return { start, end, startIso, endIso, day, summary }
+}
+
+function formatCalendarTime(date: Date) {
+  return date.toLocaleString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+}
+
+function formatCalendarTimeOnly(date: Date) {
+  return date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+}
+
+async function checkCalendarCreateConflict(code: string, tenantId: string): Promise<CalendarConflictResult | null> {
+  const requested = extractCalendarCreateWindow(code)
+  if (!requested) return null
+
+  try {
+    const response = await (corsair.withTenant(tenantId) as any).googlecalendar.api.events.getMany({
+      calendarId: 'primary',
+      timeMin: requested.day + 'T00:00:00+05:30',
+      timeMax: requested.day + 'T23:59:59+05:30',
+      singleEvents: true,
+      orderBy: 'startTime',
+    })
+
+    const items = Array.isArray(response?.items) ? response.items : []
+    const conflict = items.find((event: any) => {
+      const startStr = event.start?.dateTime
+      const endStr = event.end?.dateTime
+      if (!startStr || !endStr) return false
+      const existingStart = new Date(startStr)
+      const existingEnd = new Date(endStr)
+      if (Number.isNaN(existingStart.getTime()) || Number.isNaN(existingEnd.getTime())) return false
+      return existingStart < requested.end && requested.start < existingEnd
+    })
+
+    if (!conflict) return null
+
+    const conflictStart = new Date(conflict.start.dateTime)
+    const conflictEnd = new Date(conflict.end.dateTime)
+    const durationMs = requested.end.getTime() - requested.start.getTime()
+    const nextStart = conflictEnd
+    const nextEnd = new Date(nextStart.getTime() + durationMs)
+    const conflictTitle = conflict.summary || 'another event'
+
+    return {
+      content: [
+        `I did not book **${requested.summary}** because that time overlaps with **${conflictTitle}**.`,
+        '',
+        `Requested: ${formatCalendarTime(requested.start)} - ${formatCalendarTimeOnly(requested.end)} IST`,
+        `Busy: ${formatCalendarTime(conflictStart)} - ${formatCalendarTimeOnly(conflictEnd)} IST`,
+        '',
+        'Please choose another time and I can schedule it there.',
+      ].join('\n'),
+      suggestions: [
+        `Schedule it after ${formatCalendarTimeOnly(nextStart)}`,
+        `Try ${formatCalendarTime(nextStart)} - ${formatCalendarTimeOnly(nextEnd)}`,
+        'Pick another time',
+      ],
+    }
+  } catch (error) {
+    return {
+      content: `I could not check your calendar availability, so I did not book this meeting. Please reconnect or try again. Error: ${String(error)}`,
+      suggestions: ['Check calendar connection', 'Try another time'],
+    }
+  }
+}
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   const delays = [1000, 2000, 4000]
   let lastErr: unknown
@@ -288,6 +377,7 @@ TECHNICAL:
 - Use list_operations to discover available endpoints, get_schema for argument details, run_script to execute.
 - Never put query params inside calendarId. calendarId must be exactly "primary". Pass timeMin, timeMax, singleEvents, and orderBy as separate object fields.
 - For Google Calendar list/getMany calls, timeMin and timeMax must be RFC3339 strings. Use date.toISOString() or explicit strings like "2026-06-19T00:00:00+05:30". Never use Date.getTime(), numeric timestamps, or milliseconds.
+- Before scheduling a meeting, always check Google Calendar for the requested time window. If any existing event overlaps the requested start/end time, do not create the event. Tell the user what conflicts and suggest another time.
 - When scheduling a meeting: create the calendar event AND send a notification email.
 - If a tool fails, tell the user the specific error in plain language. Do not hide it behind a generic support message.
 - IMPORTANT: When you ask the user a question or present options, you MUST append a list of 2-4 suggested quick replies at the very end of your response using this exact format: \`[SUGGESTIONS: "Option 1" | "Option 2"]\`.
@@ -408,6 +498,17 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
           };
         }
 
+        const conflict = await checkCalendarCreateConflict(code, tenantId);
+        if (conflict) {
+          return {
+            content: conflict.content,
+            actions: ["run_script"],
+            suggestions: conflict.suggestions,
+            requiresConfirmation: false,
+            pendingScript: null,
+          };
+        }
+
         try {
           const result = await handler({ code });
           const text = extractToolText(result);
@@ -512,6 +613,17 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
             }
 
             if (isWriteAction(code)) {
+              const conflict = await checkCalendarCreateConflict(code, tenantId);
+              if (conflict) {
+                return {
+                  content: conflict.content,
+                  actions: Array.from(new Set(actions)),
+                  suggestions: conflict.suggestions,
+                  requiresConfirmation: false,
+                  pendingScript: null,
+                }
+              }
+
               // The draft card is the single confirmation step before any write action.
               return {
                 content: "",

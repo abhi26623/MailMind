@@ -514,6 +514,18 @@ export function AgentChat() {
         </div>
       ) : (
         <>
+          <div className="flex items-center justify-between px-6 py-3 bg-white/80 backdrop-blur-md border-b border-slate-200 z-20 shrink-0">
+            <h2 className="text-sm font-bold text-slate-700">Agent Chat</h2>
+            <button
+              onClick={() => {
+                setMessages([])
+                setChipSelections({})
+              }}
+              className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors shadow-sm"
+            >
+              New Chat
+            </button>
+          </div>
           <div className="flex-1 space-y-6 overflow-y-auto p-6 z-10 w-full max-w-4xl mx-auto">
             {messages.map((m, i) => {
               const mySelections = chipSelections[i] ?? {}

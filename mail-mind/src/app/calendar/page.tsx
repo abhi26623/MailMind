@@ -209,23 +209,6 @@ export default function CalendarPage() {
 
   // ── Event positioning (8 AM – 8 PM = 12 hour viewport) ────────────────
 
-  const getEventRange = (event: any) => {
-    const startStr = event.start?.dateTime || event.start?.date;
-    const endStr = event.end?.dateTime || event.end?.date;
-    if (!startStr || !endStr) return null;
-
-    const start = new Date(startStr);
-    const end = new Date(endStr);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-
-    return {
-      start,
-      end,
-      startHour: start.getHours() + start.getMinutes() / 60,
-      endHour: end.getHours() + end.getMinutes() / 60,
-    };
-  };
-
   const formatEventTimeRange = (event: any) => {
     if (!event.start?.dateTime) return "All day";
 
@@ -237,36 +220,78 @@ export default function CalendarPage() {
     return `${formatTime(start)} - ${formatTime(end)}`;
   };
 
-  const getEventStyle = (event: any, eventsForDay: any[] = []) => {
-    const range = getEventRange(event);
-    if (!range) return { display: "none" as const };
-
-    const viewStart = Math.max(8, Math.min(20, range.startHour));
-    const viewEnd = Math.max(8, Math.min(20, range.endHour));
-
-    if (viewEnd <= viewStart) {
-      return { display: "none" as const };
+  const getEventStyle = (eventIndex: number, eventsForDay: any[] = []) => {
+    const event = eventsForDay[eventIndex];
+    if (!event || !event.start?.dateTime) {
+      return { left: "0%", width: "100%" };
     }
 
-    const leftPercent = ((viewStart - 8) / 12) * 100;
-    const widthPercent = ((viewEnd - viewStart) / 12) * 100;
-    const overlappingEvents = eventsForDay.filter((candidate) => {
-      const candidateRange = getEventRange(candidate);
-      if (!candidateRange) return false;
-      return candidateRange.start < range.end && range.start < candidateRange.end;
+    const sortedEvents = [...eventsForDay].sort((a, b) => {
+      const aStart = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
+      const bStart = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
+      return aStart - bStart;
     });
-    const orderedOverlap = [...overlappingEvents].sort((a, b) => {
-      const aStart = getEventRange(a)?.start.getTime() ?? 0;
-      const bStart = getEventRange(b)?.start.getTime() ?? 0;
-      return aStart - bStart || String(a.id || "").localeCompare(String(b.id || ""));
-    });
-    const overlapCount = Math.max(1, orderedOverlap.length);
-    const overlapIndex = Math.max(0, orderedOverlap.findIndex((candidate) => candidate.id === event.id));
-    const adjustedWidth = widthPercent / overlapCount;
+
+    const clusters: any[][] = [];
+    let currentCluster: any[] = [];
+    let currentClusterEnd = 0;
+
+    for (const ev of sortedEvents) {
+      const start = new Date(ev.start?.dateTime || ev.start?.date || 0).getTime();
+      const end = new Date(ev.end?.dateTime || ev.end?.date || ev.start?.dateTime || 0).getTime();
+      
+      if (currentCluster.length === 0) {
+        currentCluster.push(ev);
+        currentClusterEnd = end;
+      } else {
+        if (start < currentClusterEnd) {
+          currentCluster.push(ev);
+          currentClusterEnd = Math.max(currentClusterEnd, end);
+        } else {
+          clusters.push(currentCluster);
+          currentCluster = [ev];
+          currentClusterEnd = end;
+        }
+      }
+    }
+    if (currentCluster.length > 0) {
+      clusters.push(currentCluster);
+    }
+
+    const myCluster = clusters.find(cluster => cluster.some(e => e.id === event.id)) || [event];
+    
+    const clusterColumns: any[][] = [];
+    for (const ev of myCluster) {
+      let placed = false;
+      for (const col of clusterColumns) {
+        const lastEvent = col[col.length - 1];
+        const lastEnd = new Date(lastEvent.end?.dateTime || lastEvent.end?.date || lastEvent.start?.dateTime || 0).getTime();
+        const evStart = new Date(ev.start?.dateTime || ev.start?.date || 0).getTime();
+        if (evStart >= lastEnd) {
+          col.push(ev);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        clusterColumns.push([ev]);
+      }
+    }
+
+    let myColIndex = 0;
+    for (let c = 0; c < clusterColumns.length; c++) {
+      if (clusterColumns[c]?.find(e => e.id === event.id)) {
+        myColIndex = c;
+        break;
+      }
+    }
+
+    const maxCols = clusterColumns.length;
+    const widthPercent = 100 / maxCols;
 
     return {
-      left: `${leftPercent + adjustedWidth * overlapIndex}%`,
-      width: `${adjustedWidth}%`,
+      left: `${widthPercent * myColIndex}%`,
+      width: `${widthPercent}%`,
     };
   };
 
@@ -526,8 +551,7 @@ export default function CalendarPage() {
                        {/* Render events horizontally */}
                        {(groupedEvents[day.getDay()] ?? []).map((event: any, i: number) => {
                           const dayEvents = groupedEvents[day.getDay()] ?? [];
-                          const style = getEventStyle(event, dayEvents);
-                          if (style.display === "none") return null;
+                          const style = getEventStyle(i, dayEvents);
                           
                           const pastelColors = [
                             "bg-[#bde8fb] text-[#1c6499]", // light blue
