@@ -89,11 +89,11 @@ export default async function Home() {
                 <img 
                   src="/hero-inbox.png" 
                   alt="MailMind Inbox Mockup" 
-                  className="w-full h-auto object-contain object-top rounded-xl border border-forest-900/5 shadow-sm"
+                  className="w-full h-auto object-contain object-top rounded-xl border-0 shadow-none"
                   style={{ maxHeight: '70vh' }}
                 />
-                {/* Fade at bottom of the image */}
-                <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                {/* Subtle fade at bottom of the image */}
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-sky-100/45 via-sky-50/20 to-transparent pointer-events-none" />
               </div>
             </TiltCard>
           </FadeIn>
@@ -312,7 +312,7 @@ export default async function Home() {
         }
         .tilt-card:hover {
           transform: perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1);
-          box-shadow: 0 40px 80px -20px rgba(26,35,26,0.25);
+          box-shadow: none;
         }
 
         /* Vercel-style Animated Glow Bento Box */

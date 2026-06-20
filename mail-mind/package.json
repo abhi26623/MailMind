@@ -6,6 +6,7 @@
   "scripts": {
     "build": "next build",
     "check": "next lint && tsc --noEmit",
+    "db:deploy": "node scripts/ensure-production-schema.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -17,7 +18,7 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
-    "start": "pnpm run db:push && next start",
+    "start": "node scripts/start-production.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

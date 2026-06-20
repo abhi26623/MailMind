@@ -44,17 +44,17 @@ export function TiltCard({ children }: { children: React.ReactNode }) {
     >
       <div
         ref={ref}
-        className={`relative w-full rounded-2xl border border-forest-900/10 bg-white transition-all ease-out preserve-3d ${
-          isHovered ? 'shadow-[0_40px_80px_-20px_rgba(26,35,26,0.3)] ring-4 ring-forest-500/20 duration-75' : 'shadow-[0_30px_60px_-15px_rgba(26,35,26,0.15)] duration-500'
+        className={`relative w-full rounded-2xl border border-transparent bg-white transition-all ease-out preserve-3d ${
+          isHovered ? 'shadow-none ring-0 duration-75' : 'shadow-[0_20px_50px_-24px_rgba(14,165,233,0.18)] duration-500'
         }`}
         style={{
           transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${isHovered ? 1.02 : 1})`,
         }}
       >
-        {/* Outline glow effect that follows hover */}
+        {/* Soft ambient lift without a dark outline */}
         <div 
-          className={`absolute -inset-2 rounded-[1.5rem] bg-gradient-to-tr from-wheat-500/0 via-wheat-500/40 to-forest-500/50 blur-xl transition-opacity pointer-events-none -z-10 ${
-            isHovered ? 'opacity-100 duration-300' : 'opacity-0 duration-500'
+          className={`absolute -inset-2 rounded-[1.5rem] bg-sky-100/30 blur-2xl transition-opacity pointer-events-none -z-10 ${
+            isHovered ? 'opacity-40 duration-300' : 'opacity-0 duration-500'
           }`} 
         />
         {children}
