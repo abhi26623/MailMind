@@ -558,8 +558,8 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
     }
   }
 
-  // Multi-turn loop (max 3 turns to conserve API calls)
-  for (let i = 0; i < 3; i++) {
+  // Multi-turn loop (max 5 turns to conserve API calls)
+  for (let i = 0; i < 5; i++) {
     const response = await withRetry(() =>
       client.chat.completions.create({
         model,
