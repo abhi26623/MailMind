@@ -179,6 +179,14 @@ export default function CalendarPage() {
       }
     });
 
+    Object.values(groups).forEach((events) => {
+      events.sort((a: any, b: any) => {
+        const aStart = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
+        const bStart = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
+        return aStart - bStart;
+      });
+    });
+
     return groups;
   }, [eventsData]);
 
@@ -201,19 +209,40 @@ export default function CalendarPage() {
 
   // ── Event positioning (8 AM – 8 PM = 12 hour viewport) ────────────────
 
-  const getEventStyle = (event: any) => {
+  const getEventRange = (event: any) => {
     const startStr = event.start?.dateTime || event.start?.date;
     const endStr = event.end?.dateTime || event.end?.date;
-    if (!startStr || !endStr) return { display: "none" as const };
+    if (!startStr || !endStr) return null;
 
     const start = new Date(startStr);
     const end = new Date(endStr);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
 
-    const startHour = start.getHours() + start.getMinutes() / 60;
-    const endHour = end.getHours() + end.getMinutes() / 60;
+    return {
+      start,
+      end,
+      startHour: start.getHours() + start.getMinutes() / 60,
+      endHour: end.getHours() + end.getMinutes() / 60,
+    };
+  };
 
-    const viewStart = Math.max(8, Math.min(20, startHour));
-    const viewEnd = Math.max(8, Math.min(20, endHour));
+  const formatEventTimeRange = (event: any) => {
+    if (!event.start?.dateTime) return "All day";
+
+    const start = new Date(event.start.dateTime);
+    const end = new Date(event.end?.dateTime || event.start.dateTime);
+    const formatTime = (date: Date) =>
+      date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(" ", "");
+
+    return `${formatTime(start)} - ${formatTime(end)}`;
+  };
+
+  const getEventStyle = (event: any, eventsForDay: any[] = []) => {
+    const range = getEventRange(event);
+    if (!range) return { display: "none" as const };
+
+    const viewStart = Math.max(8, Math.min(20, range.startHour));
+    const viewEnd = Math.max(8, Math.min(20, range.endHour));
 
     if (viewEnd <= viewStart) {
       return { display: "none" as const };
@@ -221,10 +250,23 @@ export default function CalendarPage() {
 
     const leftPercent = ((viewStart - 8) / 12) * 100;
     const widthPercent = ((viewEnd - viewStart) / 12) * 100;
+    const overlappingEvents = eventsForDay.filter((candidate) => {
+      const candidateRange = getEventRange(candidate);
+      if (!candidateRange) return false;
+      return candidateRange.start < range.end && range.start < candidateRange.end;
+    });
+    const orderedOverlap = [...overlappingEvents].sort((a, b) => {
+      const aStart = getEventRange(a)?.start.getTime() ?? 0;
+      const bStart = getEventRange(b)?.start.getTime() ?? 0;
+      return aStart - bStart || String(a.id || "").localeCompare(String(b.id || ""));
+    });
+    const overlapCount = Math.max(1, orderedOverlap.length);
+    const overlapIndex = Math.max(0, orderedOverlap.findIndex((candidate) => candidate.id === event.id));
+    const adjustedWidth = widthPercent / overlapCount;
 
     return {
-      left: `${leftPercent}%`,
-      width: `${widthPercent}%`,
+      left: `${leftPercent + adjustedWidth * overlapIndex}%`,
+      width: `${adjustedWidth}%`,
     };
   };
 
@@ -369,6 +411,14 @@ export default function CalendarPage() {
           </h1>
 
           <div className="flex items-center gap-6">
+            <button
+              onClick={() => setIsInviteOpen(true)}
+              className="px-5 py-2.5 text-[13px] font-bold bg-blue-600 hover:bg-blue-500 border border-blue-500 rounded-2xl transition-all text-white shadow-md shadow-blue-600/20 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v12m6-6H6" /></svg>
+              Create Event
+            </button>
+
             {/* View Toggle */}
             <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
               <button onClick={() => setCalendarView("week")} className={`px-5 py-2 text-xs font-bold rounded-xl transition-all ${calendarView === "week" ? "bg-slate-800 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>Week</button>
@@ -407,26 +457,8 @@ export default function CalendarPage() {
           </div>
         </header>
 
-        {/* Hours Header (Timeline style) */}
-        <div className="px-8 pt-6 pb-2 z-10 shrink-0 bg-white border-b border-slate-100">
-          <div className="flex">
-            <div className="w-32 shrink-0 flex items-center justify-center border-r border-slate-100/50 pr-4">
-              <button onClick={() => setIsInviteOpen(true)} className="w-10 h-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center transition-colors shadow-sm">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              </button>
-            </div>
-            <div className="flex-1 flex relative">
-              {workHours.slice(0, 12).map((hour, idx) => (
-                <div key={hour} className="flex-1 border-l border-transparent pl-2 text-[10px] font-bold text-slate-400 pt-3">
-                  {hour === 12 ? "12 pm" : hour > 12 ? `${hour - 12} pm` : `${hour} am`}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
         {/* Grid Body */}
-        <div className="flex-1 overflow-y-auto relative custom-scrollbar bg-white overflow-x-hidden min-h-0">
+        <div className="flex-1 overflow-hidden relative custom-scrollbar bg-white overflow-x-hidden min-h-0">
           {!status?.googlecalendar?.connected ? (
             /* ── Not connected state ─────────────────────────────────────── */
             <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 max-w-md mx-auto text-center bg-slate-50/50 rounded-3xl m-8 border border-slate-100">
@@ -447,15 +479,15 @@ export default function CalendarPage() {
               </button>
             </div>
           ) : (
-            <div className="w-full flex flex-col min-w-[800px]">
+            <div className="h-full w-full flex flex-col min-w-[800px]">
               {/* Rows for Days */}
               {currentDays.map((day, dayIdx) => {
                 const isToday = day.toDateString() === new Date().toDateString();
                 return (
-                  <div key={dayIdx} className="flex relative border-b border-slate-100/60 min-h-[90px] px-8 hover:bg-slate-50/30 transition-colors">
+                  <div key={dayIdx} className="flex flex-1 min-h-0 relative border-b border-slate-100/60 px-8 hover:bg-slate-50/30 transition-colors">
                     
                     {/* Day Label (Y-axis) */}
-                    <div className="w-32 shrink-0 py-4 flex items-center justify-start border-r border-slate-100/60 pr-6 relative">
+                    <div className="w-32 shrink-0 py-3 flex items-center justify-start border-r border-slate-100/60 pr-6 relative">
                        {isToday && <div className="absolute inset-y-2 left-0 right-4 bg-slate-800 rounded-2xl shadow-lg -z-0" />}
                        <div className="relative z-10 flex flex-col items-start pl-4">
                          <span className={`text-[10px] font-bold tracking-wide uppercase ${isToday ? 'text-slate-300' : 'text-slate-400'}`}>
@@ -492,8 +524,9 @@ export default function CalendarPage() {
                        </div>
 
                        {/* Render events horizontally */}
-                       {groupedEvents[day.getDay()]?.map((event: any, i: number) => {
-                          const style = getEventStyle(event);
+                       {(groupedEvents[day.getDay()] ?? []).map((event: any, i: number) => {
+                          const dayEvents = groupedEvents[day.getDay()] ?? [];
+                          const style = getEventStyle(event, dayEvents);
                           if (style.display === "none") return null;
                           
                           const pastelColors = [
@@ -508,14 +541,14 @@ export default function CalendarPage() {
                           return (
                             <div
                               key={event.id}
-                              className={`absolute rounded-[10px] p-1 px-2 shadow-sm overflow-hidden flex flex-col items-center justify-center text-center ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer`}
-                              style={{ left: style.left, width: style.width, top: '10px', bottom: '10px' }}
-                              title={event.summary}
+                              className={`absolute rounded-[10px] px-2.5 py-2 shadow-sm overflow-hidden flex flex-col items-start justify-center text-left ${colorClass} transition-transform hover:scale-[1.02] cursor-pointer border border-white/70`}
+                              style={{ left: style.left, width: style.width, top: "8px", bottom: "8px" }}
+                              title={`${event.summary || "(No Title)"} - ${formatEventTimeRange(event)}`}
                             >
-                              <h4 className="font-extrabold text-[10px] leading-tight w-full truncate">{event.summary || "(No Title)"}</h4>
-                              <div className="text-[9px] opacity-80 font-bold w-full truncate mt-0.5">
-                                {new Date(event.start.dateTime || event.start.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(' ', '')}
+                              <div className="text-[9px] opacity-80 font-black w-full truncate uppercase tracking-wide">
+                                {formatEventTimeRange(event)}
                               </div>
+                              <h4 className="font-extrabold text-[10px] leading-tight w-full truncate mt-0.5">{event.summary || "(No Title)"}</h4>
                             </div>
                           );
                        })}
