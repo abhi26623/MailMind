@@ -57,6 +57,9 @@ function sanitizeGeneratedScript(code: string) {
     }
   )
 
+  // Remove markdown code block wrappers if the LLM hallucinated them inside the JSON string
+  cleaned = cleaned.replace(/^```[a-z]*\n?/gm, '').replace(/```$/gm, '').trim()
+
   // Fix stubborn LLM generating numeric timestamps for Google Calendar
   cleaned = cleaned.replace(/timeMin:\s*(\d+)/g, 'timeMin: new Date($1).toISOString()')
   cleaned = cleaned.replace(/timeMax:\s*(\d+)/g, 'timeMax: new Date($1).toISOString()')
@@ -109,8 +112,14 @@ function getScriptCode(args: Record<string, unknown>) {
   return ''
 }
 
-function stripStringLiterals(code: string) {
-  return code.replace(/(["'])(?:\\.|(?!\1)[\s\S])*\1/g, '""')
+function stripStringsAndComments(code: string) {
+  return code.replace(
+    /(["'])(?:\\.|(?!\1)[\s\S])*\1|\/\*[\s\S]*?\*\/|\/\/.*$/gm,
+    (match) => {
+      if (match.startsWith('"') || match.startsWith("'")) return '""'
+      return ''
+    }
+  )
 }
 
 function isWriteAction(code: string) {
@@ -119,7 +128,7 @@ function isWriteAction(code: string) {
 }
 
 function validateGeneratedScript(code: string, tenantId: string): string | null {
-  const codeWithoutStrings = stripStringLiterals(code)
+  const codeWithoutStrings = stripStringsAndComments(code)
   const blockedPatterns = [
     /\b(?:eval|Function|require|process|globalThis|window|document|fetch|XMLHttpRequest)\b/,
     /\b(?:fs|child_process|net|tls|http|https)\b/,
@@ -130,6 +139,10 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
 
   if (blockedPatterns.some((pattern) => pattern.test(codeWithoutStrings))) {
     return 'Generated script contains JavaScript that is not allowed for MailMind actions.'
+  }
+
+  if (/\b(?:undefined|null)\b/.test(codeWithoutStrings)) {
+    return 'Generated script contains undefined or null values. Please list resources and use actual IDs instead of undefined.'
   }
 
   const tenantMatches = Array.from(code.matchAll(/corsair\.withTenant\(\s*["']([^"']+)["']\s*\)/g))
@@ -384,6 +397,7 @@ IMPORTANT RULES:
 TECHNICAL:
 - The current tenant id is already provided by the server: "${tenantId}".
 - Always use exactly \`corsair.withTenant("${tenantId}")\` in run_script.
+- Always explicitly list and read resources BEFORE performing any actions on them to prevent errors.
 - If a tool or setup helper asks for tenantId, use "${tenantId}" internally. Do not ask the user.
 - Use list_operations to discover available endpoints, get_schema for argument details, run_script to execute.
 - Never put query params inside calendarId. calendarId must be exactly "primary". Pass timeMin, timeMax, singleEvents, and orderBy as separate object fields.
@@ -651,7 +665,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
           if (result.isError) {
             console.error(`[runAgent] Tool ${toolCall.function.name} failed:`, resultContent)
             return {
-              content: `I could not complete that action. ${resultContent}`,
+              content: formatFriendlyError(resultContent),
               actions: Array.from(new Set(actions)),
               suggestions: [],
               requiresConfirmation: false,
