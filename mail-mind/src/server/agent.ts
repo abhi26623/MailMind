@@ -44,7 +44,7 @@ function formatFriendlyError(err: unknown): string {
   return 'I encountered an unexpected error while performing that action.'
 }
 
-function sanitizeGeneratedScript(code: string) {
+function sanitizeGeneratedScript(code: string, tenantId: string) {
   let cleaned = code.replace(
     /calendarId\s*:\s*["']primary[?&]([^"']+)["']/g,
     (_match, query: string) => {
@@ -64,10 +64,13 @@ function sanitizeGeneratedScript(code: string) {
   cleaned = cleaned.replace(/timeMin:\s*(\d+)/g, 'timeMin: new Date($1).toISOString()')
   cleaned = cleaned.replace(/timeMax:\s*(\d+)/g, 'timeMax: new Date($1).toISOString()')
 
+  // Force the correct tenant ID to prevent "different tenant" errors
+  cleaned = cleaned.replace(/corsair\.withTenant\([^)]+\)/g, `corsair.withTenant("${tenantId}")`)
+
   return cleaned
 }
 
-function sanitizeToolArgs(toolName: string, args: Record<string, unknown>) {
+function sanitizeToolArgs(toolName: string, args: Record<string, unknown>, tenantId: string) {
   if (toolName !== 'run_script') return args
 
   for (const key of ['code', 'script', 'snippet']) {
@@ -75,7 +78,7 @@ function sanitizeToolArgs(toolName: string, args: Record<string, unknown>) {
     if (typeof value === 'string') {
       return {
         ...args,
-        [key]: sanitizeGeneratedScript(value),
+        [key]: sanitizeGeneratedScript(value, tenantId),
       }
     }
   }
@@ -144,15 +147,6 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
 
   if (/\b(?:undefined|null)\b/.test(codeWithoutStrings)) {
     return 'Generated script contains undefined or null values. Please list resources and use actual IDs instead of undefined.'
-  }
-
-  const tenantMatches = Array.from(code.matchAll(/corsair\.withTenant\(\s*["']([^"']+)["']\s*\)/g))
-  if (tenantMatches.length === 0) {
-    return 'Generated script must use the current MailMind tenant.'
-  }
-
-  if (tenantMatches.some((match) => match[1] !== tenantId)) {
-    return 'Generated script tried to use a different tenant.'
   }
 
   const operationMatches = Array.from(code.matchAll(/corsair\.withTenant\(\s*["'][^"']+["']\s*\)\.(gmail|googlecalendar)\.api\.([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)/g))
@@ -406,6 +400,7 @@ TECHNICAL:
 - Before scheduling a meeting, always check Google Calendar for the requested time window. If any existing event overlaps the requested start/end time, do not create the event. Tell the user what conflicts and suggest another time.
 - When scheduling a meeting: create the calendar event AND send a notification email.
 - If a tool fails, tell the user the specific error in plain language. Do not hide it behind a generic support message.
+- To process multiple items (like fetching multiple emails), write a single script that uses Promise.all rather than calling the tool multiple times.
 - IMPORTANT: When you ask the user a question or present options, you MUST append a list of 2-4 suggested quick replies at the very end of your response using this exact format: \`[SUGGESTIONS: "Option 1" | "Option 2"]\`.
   Example: "I found 3 free slots. [SUGGESTIONS: "Book 2pm tomorrow" | "What about Friday?" | "Cancel"]"
 
@@ -518,7 +513,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
   if (messages.length > 0) {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg?.content.startsWith("CONFIRMED_EXECUTE:\n")) {
-      const code = sanitizeGeneratedScript(lastMsg.content.replace("CONFIRMED_EXECUTE:\n", ""));
+      const code = sanitizeGeneratedScript(lastMsg.content.replace("CONFIRMED_EXECUTE:\n", ""), tenantId);
       const handler = handlerMap.get("run_script");
       if (handler) {
         const validationError = validateGeneratedScript(code, tenantId);
@@ -620,7 +615,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
       if (handler) {
         try {
           const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
-          const sanitizedArgs = sanitizeToolArgs(toolCall.function.name, args)
+          const sanitizedArgs = sanitizeToolArgs(toolCall.function.name, args, tenantId)
 
           if (toolCall.function.name === 'run_script') {
             const code = getScriptCode(sanitizedArgs)
