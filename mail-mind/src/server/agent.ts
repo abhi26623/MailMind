@@ -137,8 +137,9 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
     /\b(?!(?:return|await|yield|typeof|void|throw|delete|new|case|default|in|instanceof|do|else)\b)[a-zA-Z_$][a-zA-Z0-9_$]*\s*`/,
   ]
 
-  if (blockedPatterns.some((pattern) => pattern.test(codeWithoutStrings))) {
-    return 'Generated script contains JavaScript that is not allowed for MailMind actions.'
+  const matchedPattern = blockedPatterns.find((pattern) => pattern.test(codeWithoutStrings))
+  if (matchedPattern) {
+    return `Generated script contains JavaScript that is not allowed for MailMind actions.\n\nMatched: \`${matchedPattern.toString()}\`\n\nBlocked Code:\n\`\`\`javascript\n${code}\n\`\`\``
   }
 
   if (/\b(?:undefined|null)\b/.test(codeWithoutStrings)) {
@@ -415,6 +416,14 @@ return await corsair.withTenant("${tenantId}").gmail.api.messages.list({
   userId: "me",
   q: "is:unread",
   maxResults: 10
+});
+\`\`\`
+
+Read a specific email body:
+\`\`\`javascript
+return await corsair.withTenant("${tenantId}").gmail.api.messages.get({
+  userId: "me",
+  id: "message_id_here"
 });
 \`\`\`
 
