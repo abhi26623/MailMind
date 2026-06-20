@@ -33,6 +33,17 @@ function extractToolText(result: Awaited<ReturnType<CorsairToolDef['handler']>>)
     .join('\n')
 }
 
+function formatFriendlyError(err: unknown): string {
+  const msg = String(err)
+  if (msg.includes('Not Found')) {
+    return 'I could not find that specific item. Please make sure the email or event still exists.'
+  }
+  if (msg.includes('validation')) {
+    return 'I encountered a data validation issue while trying to do that.'
+  }
+  return 'I encountered an unexpected error while performing that action.'
+}
+
 function sanitizeGeneratedScript(code: string) {
   let cleaned = code.replace(
     /calendarId\s*:\s*["']primary[?&]([^"']+)["']/g,
@@ -114,7 +125,7 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
     /\b(?:fs|child_process|net|tls|http|https)\b/,
     /\b(?:constructor|prototype|__proto__)\b/,
     /\bimport\s*\(/,
-    /`/,
+    /\b(?!(?:return|await|yield|typeof|void|throw|delete|new|case|default|in|instanceof|do|else)\b)[a-zA-Z_$][a-zA-Z0-9_$]*\s*`/,
   ]
 
   if (blockedPatterns.some((pattern) => pattern.test(codeWithoutStrings))) {
@@ -315,7 +326,7 @@ function formatExecutionResult(rawText: string, code: string): string {
         return '✅ **Done.** The event was deleted and attendees were notified.'
       }
     }
-  } catch {
+  } catch (_) {
     // Not parseable JSON — return a minimal success message
   }
 
@@ -522,7 +533,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
           };
         } catch (e) {
           return {
-            content: `❌ Action failed: ${String(e)}`,
+            content: formatFriendlyError(e),
             actions: ["run_script"],
             suggestions: [],
             requiresConfirmation: false,
@@ -651,7 +662,7 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
           console.error(`[runAgent] Tool ${toolCall.function.name} threw:`, err)
           resultContent = JSON.stringify({ error: String(err) })
           return {
-            content: `I could not complete that action. ${String(err)}`,
+            content: formatFriendlyError(err),
             actions: Array.from(new Set(actions)),
             suggestions: [],
             requiresConfirmation: false,
