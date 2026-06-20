@@ -188,8 +188,9 @@ function parseScriptForDraft(script: string): DraftInfo {
     let body = ''
     
     const arrayMatch = script.match(/\[([\s\S]*?)\]\.join/)
-    if (arrayMatch) {
-      const lines = [...arrayMatch[1].matchAll(/["'\`](.*?)["'\`]/gs)].map(m => m[1] ?? '')
+    const arrayContent = arrayMatch?.[1]
+    if (arrayContent) {
+      const lines = [...arrayContent.matchAll(/["'\`](.*?)["'\`]/gs)].map(m => m[1] ?? '')
       const emptyIdx = lines.findIndex(l => l.trim() === '')
       if (emptyIdx >= 0) {
          body = lines.slice(emptyIdx + 1).join('\n')
@@ -200,12 +201,14 @@ function parseScriptForDraft(script: string): DraftInfo {
     
     if (!body) {
       const parts = script.split(/(?:MIME-Version:[^\n]*|Content-Type:[^\n]*|Subject:[^\n]*)(?:\r?\n){2,}/i)
-      if (parts.length > 1) {
-         body = parts[1].split(/["'\`]/)[0].trim()
+      const partContent = parts[1]
+      if (parts.length > 1 && partContent) {
+         body = (partContent.split(/["'\`]/)[0] ?? '').trim()
       } else {
          const rawMatch = script.match(/Buffer\.from\(['"\`]?([\s\S]*?)['"\`]?\)/i)
-         if (rawMatch) {
-            const lines = rawMatch[1].split(/\\r\\n|\\n|\r\n|\n/)
+         const rawContent = rawMatch?.[1]
+         if (rawContent) {
+            const lines = rawContent.split(/\\r\\n|\\n|\r\n|\n/)
             const emptyIdx = lines.findIndex(l => l.trim() === '')
             if (emptyIdx >= 0) body = lines.slice(emptyIdx + 1).join('\n')
          }
