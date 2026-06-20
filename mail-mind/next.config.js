@@ -8,7 +8,6 @@ import "./src/env.js";
 const config = {
   serverExternalPackages: ["@corsair-dev/mcp", "express", "@huggingface/transformers", "onnxruntime-node"],
   eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
 };
 
 export default config;

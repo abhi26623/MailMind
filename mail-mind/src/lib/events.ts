@@ -1,7 +1,7 @@
 import { redisPublisher, redisSubscriber } from "@/server/redis";
 
 /**
- * Distributed event bus for webhook → SSE push.
+ * Distributed event bus for webhook -> SSE push.
  * When a webhook fires, it publishes a tenantId message to Redis.
  * The Redis subscriber listens and dispatches it to the local in-memory listeners.
  * SSE connections subscribe to their tenantId and get instant updates.
@@ -13,9 +13,13 @@ type Listener = () => void;
 class WebhookEventBus {
   private listeners = new Map<string, Set<Listener>>();
   private channel = "webhook-refresh";
+  private isSubscribed = false;
 
-  constructor() {
-    // Subscribe once per process
+  private ensureSubscribed() {
+    if (this.isSubscribed) return;
+    this.isSubscribed = true;
+
+    // Subscribe once per process, lazily. This prevents next build from opening Redis.
     void redisSubscriber.subscribe(this.channel, (err) => {
       if (err) {
         console.error("[Redis] Failed to subscribe to channel:", err);
@@ -24,7 +28,7 @@ class WebhookEventBus {
       }
     });
 
-    // When we receive a message from Redis, trigger local listeners
+    // When we receive a message from Redis, trigger local listeners.
     redisSubscriber.on("message", (channel, message) => {
       if (channel === this.channel) {
         const tenantId = message;
@@ -40,6 +44,8 @@ class WebhookEventBus {
 
   /** Subscribe to updates for a tenantId. Returns an unsubscribe fn. */
   subscribe(tenantId: string, listener: Listener): () => void {
+    this.ensureSubscribed();
+
     if (!this.listeners.has(tenantId)) {
       this.listeners.set(tenantId, new Set());
     }
@@ -54,15 +60,15 @@ class WebhookEventBus {
     };
   }
 
-  /** Publish a refresh event for a given tenant across all instances */
+  /** Publish a refresh event for a given tenant across all instances. */
   emit(tenantId: string) {
-    redisPublisher.publish(this.channel, tenantId).catch(err => {
+    redisPublisher.publish(this.channel, tenantId).catch((err) => {
       console.error(`[Redis] Failed to publish message for tenant ${tenantId}:`, err);
     });
   }
 }
 
-// Singleton -- survives HMR in dev because of globalThis cache
+// Singleton -- survives HMR in dev because of globalThis cache.
 const globalForBus = globalThis as unknown as { webhookBus?: WebhookEventBus };
 export const webhookBus = globalForBus.webhookBus ?? new WebhookEventBus();
 if (process.env.NODE_ENV !== "production") globalForBus.webhookBus = webhookBus;

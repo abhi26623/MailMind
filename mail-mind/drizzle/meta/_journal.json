@@ -15,6 +15,13 @@
       "when": 1781775358613,
       "tag": "0001_strange_dormammu",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781943802516,
+      "tag": "0002_salty_the_renegades",
+      "breakpoints": true
     }
   ]
 }

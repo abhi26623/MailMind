@@ -4,13 +4,16 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { SettingsModal } from "@/app/_components/settings-modal";
-import { SignOutButton } from "@/app/_components/auth-buttons";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import { authClient } from "@/server/better-auth/client";
 import { CommandPalette } from "@/app/_components/CommandPalette";
 import { PeekCalendarModal } from "@/app/_components/PeekCalendarModal";
+import { ComposeModal } from "./_components/ComposeModal";
+import { ReplyModal } from "./_components/ReplyModal";
+import { SafeEmailFrame } from "./_components/SafeEmailFrame";
+import { getMessageBody, isHtmlEmail, type GmailPayload } from "./_utils/email";
 
 interface Thread {
   id: string;
@@ -18,23 +21,10 @@ interface Thread {
   historyId: string;
   messages?: Array<{
     id: string;
-    payload?: any;
+    payload?: GmailPayload;
     internalDate?: string;
     labelIds?: string[];
   }>;
-}
-
-function ShadowEmail({ html, className }: { html: string; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    if (ref.current) {
-      const shadow = ref.current.shadowRoot || ref.current.attachShadow({ mode: 'open' });
-      shadow.innerHTML = html;
-    }
-  }, [html]);
-
-  return <div ref={ref} className={className} />;
 }
 
 export default function InboxPage() {
@@ -493,37 +483,6 @@ export default function InboxPage() {
       ? threadDetails.messages
       : thread.messages;
     return messages?.some(m => m.labelIds?.includes("STARRED")) ?? false;
-  };
-
-  // Gmail body decoder helper
-  const getMessageBody = (payload: any): string => {
-    if (!payload) return "(No body)";
-    let bodyData = "";
-    if (payload.body?.data) {
-      bodyData = payload.body.data;
-    } else if (payload.parts) {
-      const textPart = payload.parts.find((p: any) => p.mimeType === "text/plain");
-      const htmlPart = payload.parts.find((p: any) => p.mimeType === "text/html");
-      const part = htmlPart || textPart; // prefer html, fallback to text
-
-      if (part?.body?.data) {
-        bodyData = part.body.data;
-      } else if (payload.parts[0]?.parts) { // nested parts (multipart/alternative)
-        const subPart = payload.parts[0].parts.find((p: any) => p.mimeType === "text/html")
-          || payload.parts[0].parts.find((p: any) => p.mimeType === "text/plain");
-        if (subPart?.body?.data) bodyData = subPart.body.data;
-      }
-    }
-
-    if (bodyData) {
-      try {
-        const base64 = bodyData.replace(/-/g, "+").replace(/_/g, "/");
-        return decodeURIComponent(escape(window.atob(base64)));
-      } catch (e) {
-        return "(Error decoding message body)";
-      }
-    }
-    return "(No readable body found)";
   };
 
   // Actions
@@ -1135,7 +1094,7 @@ export default function InboxPage() {
                   <div className="space-y-3">
                     {threadDetails.messages.map((message: any, idx: number) => {
                       const bodyText = getMessageBody(message.payload);
-                      const isHtml = bodyText.includes("<html") || bodyText.includes("<body") || bodyText.includes("<div") || bodyText.includes("<p>") || bodyText.includes("<table") || bodyText.includes("<!DOCTYPE");
+                      const isHtml = isHtmlEmail(bodyText);
                       
                       // Alternate messages left and right to look like a chat bubble flow
                       const isMe = idx % 2 !== 0; 
@@ -1159,7 +1118,7 @@ export default function InboxPage() {
                               })}</span>
                             </div>
                             {isHtml ? (
-                              <ShadowEmail
+                              <SafeEmailFrame
                                 className={`text-sm leading-relaxed overflow-x-auto max-w-full ${isMe ? "text-cream-100" : "text-forest-900"}`}
                                 html={bodyText}
                               />
@@ -1324,246 +1283,47 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* MODAL: Compose */}
-      {isComposeOpen && (
-        <div className="fixed inset-0 z-50 bg-forest-900/40 flex items-center justify-center p-4">
-          <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-forest-900">Compose New Email</h3>
-              <button
-                onClick={() => setIsComposeOpen(false)}
-                className="text-slate-600 font-medium hover:text-cream-100 transition-all text-xs"
-              >
-                x Close
-              </button>
-            </div>
+      <ComposeModal
+        isOpen={isComposeOpen}
+        to={composeTo}
+        subject={composeSubject}
+        body={composeBody}
+        aiOpen={isComposeAiOpen}
+        aiPrompt={composeAiPrompt}
+        isSending={sendMutation.isPending}
+        isDraftPending={composeDraftMutation.isPending}
+        isPolishPending={composePolishMutation.isPending}
+        onClose={() => setIsComposeOpen(false)}
+        onSubmit={handleSendCompose}
+        onToChange={setComposeTo}
+        onSubjectChange={setComposeSubject}
+        onBodyChange={setComposeBody}
+        onAiOpenChange={setIsComposeAiOpen}
+        onAiPromptChange={setComposeAiPrompt}
+        onGenerateDraft={() => composeDraftMutation.mutate({ prompt: composeAiPrompt })}
+        onPolish={(tone) => composePolishMutation.mutate({ text: composeBody, tone })}
+      />
 
-            <form onSubmit={handleSendCompose} className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">To</label>
-                <input
-                  type="email"
-                  value={composeTo}
-                  onChange={(e) => setComposeTo(e.target.value)}
-                  required
-                  placeholder="recipient@example.com"
-                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Subject</label>
-                <input
-                  type="text"
-                  value={composeSubject}
-                  onChange={(e) => setComposeSubject(e.target.value)}
-                  required
-                  placeholder="Subject details"
-                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600">Message Body</label>
-                  <button
-                    type="button"
-                    onClick={() => setIsComposeAiOpen(!isComposeAiOpen)}
-                    className="flex items-center space-x-1 text-xs font-semibold text-blue-500 hover:text-blue-600 transition-colors"
-                  >
-                    <span>✨ Draft with AI</span>
-                  </button>
-                </div>
-                {isComposeAiOpen && (
-                  <div className="mb-2 p-3 bg-blue-50 border border-blue-100 rounded-xl space-y-2">
-                    <input
-                      type="text"
-                      value={composeAiPrompt}
-                      onChange={(e) => setComposeAiPrompt(e.target.value)}
-                      placeholder="What should the AI write?"
-                      className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      disabled={composeDraftMutation.isPending || !composeAiPrompt}
-                      onClick={() => composeDraftMutation.mutate({ prompt: composeAiPrompt })}
-                      className="w-full py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-bold rounded-lg shadow disabled:opacity-50"
-                    >
-                      {composeDraftMutation.isPending ? "Generating..." : "Generate Draft"}
-                    </button>
-                  </div>
-                )}
-                <textarea
-                  rows={6}
-                  value={composeBody}
-                  onChange={(e) => setComposeBody(e.target.value)}
-                  required
-                  placeholder="Write your email here..."
-                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner resize-none"
-                />
-                <div className="flex space-x-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => composePolishMutation.mutate({ text: composeBody, tone: "professional" })}
-                    disabled={!composeBody || composePolishMutation.isPending}
-                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
-                  >
-                    👔 Professional
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => composePolishMutation.mutate({ text: composeBody, tone: "shorter" })}
-                    disabled={!composeBody || composePolishMutation.isPending}
-                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
-                  >
-                    ✂️ Shorter
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => composePolishMutation.mutate({ text: composeBody, tone: "grammar" })}
-                    disabled={!composeBody || composePolishMutation.isPending}
-                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
-                  >
-                    📝 Fix Grammar
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsComposeOpen(false)}
-                  className="px-4 py-2 bg-forest-700 hover:bg-forest-600 text-xs font-semibold rounded-xl text-cream-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={sendMutation.isPending}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-blue-500/20"
-                >
-                  {sendMutation.isPending ? "Sending..." : "Send Email"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {activeThread && (
+        <ReplyModal
+          isOpen={isReplyOpen}
+          threadId={activeThread.id}
+          threadSnippet={activeThread.snippet}
+          body={replyBody}
+          aiOpen={isReplyAiOpen}
+          aiPrompt={replyAiPrompt}
+          isSending={replyMutation.isPending}
+          isDraftPending={replyDraftMutation.isPending}
+          isPolishPending={replyPolishMutation.isPending}
+          onClose={() => setIsReplyOpen(false)}
+          onSubmit={handleSendReply}
+          onBodyChange={setReplyBody}
+          onAiOpenChange={setIsReplyAiOpen}
+          onAiPromptChange={setReplyAiPrompt}
+          onGenerateDraft={() => replyDraftMutation.mutate({ prompt: replyAiPrompt, context: activeThread.snippet })}
+          onPolish={(tone) => replyPolishMutation.mutate({ text: replyBody, tone })}
+        />
       )}
-
-      {/* MODAL: Reply */}
-      {isReplyOpen && activeThread && (
-        <div className="fixed inset-0 z-50 bg-forest-900/40 flex items-center justify-center p-4">
-          <div className="bg-[#F5F6F8] border border-forest-900/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-forest-900">
-                Reply to Thread #{activeThread.id.substring(0, 8)}
-              </h3>
-              <button
-                onClick={() => setIsReplyOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-all text-xs font-semibold"
-              >
-                x Close
-              </button>
-            </div>
-
-            <form onSubmit={handleSendReply} className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600 mb-1">Subject</label>
-                <div className="w-full bg-forest-950/50 border border-forest-700 rounded-xl px-3 py-2 text-xs text-slate-600 font-medium">
-                  Re: {activeThread.snippet.substring(0, 50)}...
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-forest-600">Your Reply</label>
-                  <button
-                    type="button"
-                    onClick={() => setIsReplyAiOpen(!isReplyAiOpen)}
-                    className="flex items-center space-x-1 text-xs font-semibold text-indigo-500 hover:text-indigo-600 transition-colors"
-                  >
-                    <span>✨ Draft with AI</span>
-                  </button>
-                </div>
-                {isReplyAiOpen && (
-                  <div className="mb-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-2">
-                    <input
-                      type="text"
-                      value={replyAiPrompt}
-                      onChange={(e) => setReplyAiPrompt(e.target.value)}
-                      placeholder="What should the AI write?"
-                      className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      disabled={replyDraftMutation.isPending || !replyAiPrompt}
-                      onClick={() => replyDraftMutation.mutate({ 
-                        prompt: replyAiPrompt,
-                        context: activeThread.snippet
-                      })}
-                      className="w-full py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold rounded-lg shadow disabled:opacity-50"
-                    >
-                      {replyDraftMutation.isPending ? "Generating..." : "Generate Reply"}
-                    </button>
-                  </div>
-                )}
-                <textarea
-                  rows={6}
-                  value={replyBody}
-                  onChange={(e) => setReplyBody(e.target.value)}
-                  required
-                  placeholder="Write reply here..."
-                  className="w-full bg-white border border-forest-900/10 rounded-xl px-3 py-2 text-xs text-forest-900 focus:outline-none focus:border-forest-500 shadow-inner resize-none"
-                />
-                <div className="flex space-x-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => replyPolishMutation.mutate({ text: replyBody, tone: "professional" })}
-                    disabled={!replyBody || replyPolishMutation.isPending}
-                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
-                  >
-                    👔 Professional
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => replyPolishMutation.mutate({ text: replyBody, tone: "shorter" })}
-                    disabled={!replyBody || replyPolishMutation.isPending}
-                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
-                  >
-                    ✂️ Shorter
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => replyPolishMutation.mutate({ text: replyBody, tone: "grammar" })}
-                    disabled={!replyBody || replyPolishMutation.isPending}
-                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-700 rounded transition-colors disabled:opacity-50"
-                  >
-                    📝 Fix Grammar
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsReplyOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={replyMutation.isPending}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white shadow-md shadow-indigo-600/10"
-                >
-                  {replyMutation.isPending ? "Sending..." : "Send Reply"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* MODAL: Cheatsheet */}
       {showCheatsheet && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">

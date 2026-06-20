@@ -13,13 +13,14 @@ export const corsair = createCorsair({
             const data = result.data as Record<string, unknown> | undefined;
             console.log('New email change:', data?.type);
             
-            // Auto-Triage: Try to fetch insight if we have thread info
-            if (data?.threadId) {
-                // We'll pass whatever we have. OpenRouter will try to analyze.
+            // Auto-Triage: Try to fetch insight if we have thread info and tenant context.
+            const tenantId = typeof ctx.tenantId === 'string' ? ctx.tenantId : undefined;
+            if (tenantId && data?.threadId) {
                 generateAndSaveInsight({
+                    tenantId,
                     threadId: String(data.threadId),
-                    snippet: data.snippet ? String(data.snippet) : undefined,
-                    subject: data.subject ? String(data.subject) : undefined
+                    snippet: typeof data.snippet === 'string' ? data.snippet : undefined,
+                    subject: typeof data.subject === 'string' ? data.subject : undefined
                 }).catch(err => console.error("Webhook insight error:", err));
             }
 

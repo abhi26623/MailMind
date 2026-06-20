@@ -1,4 +1,4 @@
-import { pgTable, text, jsonb, timestamp, boolean, varchar, integer, date, index, vector } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, timestamp, boolean, integer, date, index, uniqueIndex, vector } from 'drizzle-orm/pg-core';
 
 export const corsairIntegrations = pgTable('corsair_integrations', {
     id: text('id').primaryKey().notNull(),
@@ -106,7 +106,8 @@ export const emailInsights = pgTable('email_insights', {
     id: text('id').primaryKey().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    threadId: text('thread_id').notNull().unique(),
+    tenantId: text('tenant_id').notNull(),
+    threadId: text('thread_id').notNull(),
     priority: text('priority').notNull(),
     category: text('category').notNull(),
     summary: text('summary').notNull(),
@@ -114,7 +115,9 @@ export const emailInsights = pgTable('email_insights', {
     reason: text('reason').notNull(),
     extractedDateTime: text('extracted_date_time'),
     extractedEmail: text('extracted_email'),
-});
+}, (table) => ({
+    tenantThreadIndex: uniqueIndex('email_insights_tenant_thread_idx').on(table.tenantId, table.threadId),
+}));
 
 export const availabilityBlocks = pgTable('availability_blocks', {
     id: text('id').primaryKey().notNull(),

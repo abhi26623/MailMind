@@ -68,6 +68,82 @@ function sanitizeToolArgs(toolName: string, args: Record<string, unknown>) {
 
   return args
 }
+const ALLOWED_SCRIPT_OPERATIONS = new Set([
+  'gmail.messages.list',
+  'gmail.messages.get',
+  'gmail.messages.send',
+  'gmail.messages.modify',
+  'gmail.messages.trash',
+  'gmail.messages.delete',
+  'gmail.messages.batchModify',
+  'gmail.threads.list',
+  'gmail.threads.get',
+  'gmail.threads.modify',
+  'gmail.threads.trash',
+  'gmail.threads.delete',
+  'googlecalendar.events.getMany',
+  'googlecalendar.events.get',
+  'googlecalendar.events.create',
+  'googlecalendar.events.update',
+  'googlecalendar.events.delete',
+])
+
+const WRITE_ACTION_PATTERN = /\.(?:send|create|modify|trash|delete|batchModify|update)\s*\(/g
+
+function getScriptCode(args: Record<string, unknown>) {
+  for (const key of ['code', 'script', 'snippet']) {
+    const value = args[key]
+    if (typeof value === 'string') return value
+  }
+  return ''
+}
+
+function stripStringLiterals(code: string) {
+  return code.replace(/(["'])(?:\\.|(?!\1)[\s\S])*\1/g, '""')
+}
+
+function isWriteAction(code: string) {
+  WRITE_ACTION_PATTERN.lastIndex = 0
+  return WRITE_ACTION_PATTERN.test(code)
+}
+
+function validateGeneratedScript(code: string, tenantId: string): string | null {
+  const codeWithoutStrings = stripStringLiterals(code)
+  const blockedPatterns = [
+    /\b(?:eval|Function|require|process|globalThis|window|document|fetch|XMLHttpRequest)\b/,
+    /\b(?:fs|child_process|net|tls|http|https)\b/,
+    /\b(?:constructor|prototype|__proto__)\b/,
+    /\bimport\s*\(/,
+    /`/,
+  ]
+
+  if (blockedPatterns.some((pattern) => pattern.test(codeWithoutStrings))) {
+    return 'Generated script contains JavaScript that is not allowed for MailMind actions.'
+  }
+
+  const tenantMatches = Array.from(code.matchAll(/corsair\.withTenant\(\s*["']([^"']+)["']\s*\)/g))
+  if (tenantMatches.length === 0) {
+    return 'Generated script must use the current MailMind tenant.'
+  }
+
+  if (tenantMatches.some((match) => match[1] !== tenantId)) {
+    return 'Generated script tried to use a different tenant.'
+  }
+
+  const operationMatches = Array.from(code.matchAll(/corsair\.withTenant\(\s*["'][^"']+["']\s*\)\.(gmail|googlecalendar)\.api\.([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)/g))
+  if (operationMatches.length === 0) {
+    return 'Generated script must call an approved Gmail or Google Calendar API.'
+  }
+
+  for (const match of operationMatches) {
+    const operation = `${match[1]}.${match[2]}.${match[3]}`
+    if (!ALLOWED_SCRIPT_OPERATIONS.has(operation)) {
+      return `Generated script attempted an unapproved operation: ${operation}`
+    }
+  }
+
+  return null
+}
 
 /**
  * Wrap an LLM API call with retry logic for 429 and transient errors.
@@ -318,9 +394,20 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
   if (messages.length > 0) {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg?.content.startsWith("CONFIRMED_EXECUTE:\n")) {
-      const code = lastMsg.content.replace("CONFIRMED_EXECUTE:\n", "");
+      const code = sanitizeGeneratedScript(lastMsg.content.replace("CONFIRMED_EXECUTE:\n", ""));
       const handler = handlerMap.get("run_script");
       if (handler) {
+        const validationError = validateGeneratedScript(code, tenantId);
+        if (validationError) {
+          return {
+            content: `I stopped this action because it did not pass safety checks: ${validationError}`,
+            actions: ["run_script"],
+            suggestions: [],
+            requiresConfirmation: false,
+            pendingScript: null,
+          };
+        }
+
         try {
           const result = await handler({ code });
           const text = extractToolText(result);
@@ -397,37 +484,44 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
       let resultContent: string
       if (handler) {
         try {
-          const args = JSON.parse(toolCall.function.arguments)
+          const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
           const sanitizedArgs = sanitizeToolArgs(toolCall.function.name, args)
 
           if (toolCall.function.name === 'run_script') {
-            const code = (args.code as string) || (args.script as string) || (args.snippet as string) || "";
-            
+            const code = getScriptCode(sanitizedArgs)
+
             // Block agent from confusing native tools with Corsair APIs
             if (code.includes("create_scheduling_negotiation")) {
               chatMessages.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
                 content: "ERROR: mailmind_create_scheduling_negotiation is a native tool call, NOT a javascript method on corsair. Do not use it inside run_script. Use the mailmind_create_scheduling_negotiation tool directly.",
-              });
-              continue;
+              })
+              continue
             }
 
-            const isWriteAction = code.includes(".send(") || code.includes(".create(") || code.includes(".modify(") || code.includes(".trash(") || code.includes(".delete(");
-
-            if (isWriteAction) {
-              // Always show draft card — agent no longer asks "Shall I proceed?"
-              // The draft card is the single confirmation step.
+            const validationError = validateGeneratedScript(code, tenantId)
+            if (validationError) {
               return {
-                content: "",   // agent's plan sentence already in the previous message
+                content: `I stopped this action because it did not pass safety checks: ${validationError}`,
+                actions: Array.from(new Set(actions)),
+                suggestions: [],
+                requiresConfirmation: false,
+                pendingScript: null,
+              }
+            }
+
+            if (isWriteAction(code)) {
+              // The draft card is the single confirmation step before any write action.
+              return {
+                content: "",
                 actions: Array.from(new Set(actions)),
                 suggestions: [],
                 requiresConfirmation: true,
                 pendingScript: code,
-              };
+              }
             }
           }
-
           const result = await handler(sanitizedArgs)
           const text = extractToolText(result)
           resultContent = text || JSON.stringify(result)
