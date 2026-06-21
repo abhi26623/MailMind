@@ -59,16 +59,53 @@ function sanitizeEmailHtml(html: string) {
 <html>
   <head>
     <base target="_blank" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-      html, body { margin: 0; padding: 0; background: transparent; color: inherit; font: inherit; }
-      body { overflow-wrap: anywhere; overflow-y: hidden; }
-      img, table { max-width: 100%; }
-      table { border-collapse: collapse; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        /* Allow the iframe height to be measured correctly */
+        overflow-x: hidden;
+      }
+      body {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      /* Scale all images and media down to fit */
+      img, video, svg {
+        max-width: 100% !important;
+        height: auto !important;
+      }
+
+      /* Force fixed-width tables to be responsive.
+         Many marketing emails hard-code width="600" or style="width:600px".
+         This overrides those so they collapse to the container width. */
+      table {
+        border-collapse: collapse;
+        max-width: 100% !important;
+        width: 100% !important;
+        table-layout: fixed !important;
+      }
+      td, th {
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+
+      /* Override common inline-style patterns marketing emails use */
+      [width] { width: 100% !important; max-width: 100% !important; }
+      [style*="width:600"] { width: 100% !important; max-width: 100% !important; }
+      [style*="width: 600"] { width: 100% !important; max-width: 100% !important; }
+
       a { color: inherit; }
     </style>
   </head>
   <body>${document.body.innerHTML}</body>
 </html>`;
+
 }
 
 export function SafeEmailFrame({ html, className }: SafeEmailFrameProps) {

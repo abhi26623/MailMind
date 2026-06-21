@@ -243,22 +243,32 @@ export function ThreadDetail({
                   const isMe = idx % 2 !== 0;
 
                   return (
-                    <div key={message.id} className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
-                      {!isMe && (
+                    <div key={message.id} className={`flex w-full ${!isHtml && isMe ? "justify-end" : "justify-start"}`}>
+                      {/* Avatar — hidden for HTML emails to reclaim full width */}
+                      {!isMe && !isHtml && (
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 flex items-center justify-center text-white font-bold text-xs mt-auto mb-1 mr-3 shadow-sm">
                           {String.fromCharCode(65 + (parseInt(activeThread.id.substring(0, 8), 16) % 26))}
                         </div>
                       )}
                       <div
-                        className={`max-w-full lg:max-w-[85%] rounded-2xl p-5 shadow-lg border relative min-w-0 overflow-hidden ${
-                          isMe
-                            ? "bg-blue-600 text-white border-transparent rounded-br-sm ml-8 shadow-sm"
-                            : "bg-slate-100 border-transparent rounded-bl-sm mr-8 text-slate-900 shadow-sm"
+                        className={`rounded-2xl p-5 shadow-sm border relative min-w-0 ${
+                          isHtml
+                            ? // HTML emails: full width, horizontally scrollable if email is wider than viewport
+                              "w-full overflow-x-auto bg-white border-slate-200 text-slate-900"
+                            : isMe
+                            ? // Plain text sent by me
+                              "max-w-full lg:max-w-[85%] overflow-hidden bg-blue-600 text-white border-transparent rounded-br-sm ml-8"
+                            : // Plain text received
+                              "max-w-full lg:max-w-[85%] overflow-hidden bg-slate-100 border-transparent rounded-bl-sm mr-8 text-slate-900"
                         }`}
                       >
                         <div
                           className={`flex justify-between items-center text-[9px] font-semibold mb-3 pb-2 border-b ${
-                            isMe ? "text-forest-300 border-forest-800" : "text-forest-400 border-forest-100"
+                            isHtml
+                              ? "text-slate-400 border-slate-100"
+                              : isMe
+                              ? "text-forest-300 border-forest-800"
+                              : "text-forest-400 border-forest-100"
                           }`}
                         >
                           <span className="font-mono opacity-60">ID: {message.id.substring(0, 8)}</span>
@@ -273,7 +283,7 @@ export function ThreadDetail({
                         </div>
                         {isHtml ? (
                           <SafeEmailFrame
-                            className={`text-sm leading-relaxed overflow-x-auto max-w-full ${isMe ? "text-cream-100" : "text-forest-900"}`}
+                            className="w-full"
                             html={bodyText}
                           />
                         ) : (
@@ -282,7 +292,7 @@ export function ThreadDetail({
                           </p>
                         )}
                       </div>
-                      {isMe && (
+                      {isMe && !isHtml && (
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-wheat-500 to-amber-500 flex items-center justify-center text-forest-950 font-bold text-xs mt-auto mb-1 ml-3 shadow-sm">
                           ME
                         </div>
