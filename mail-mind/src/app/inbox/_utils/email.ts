@@ -8,6 +8,21 @@ export type GmailPayload = GmailPart & {
   headers?: Array<{ name?: string; value?: string }>;
 };
 
+export interface GmailMessage {
+  id: string;
+  payload?: GmailPayload;
+  internalDate?: string;
+  labelIds?: string[];
+  snippet?: string;
+}
+
+export interface Thread {
+  id: string;
+  snippet: string;
+  historyId: string;
+  messages?: GmailMessage[];
+}
+
 function findPart(payload: GmailPart | undefined, mimeType: string): GmailPart | undefined {
   if (!payload) return undefined;
   if (payload.mimeType === mimeType && payload.body?.data) return payload;

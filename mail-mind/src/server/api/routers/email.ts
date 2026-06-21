@@ -5,6 +5,14 @@ import { db } from "@/server/db";
 import { readLaterThreads } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 
+/**
+ * Strip CR/LF from email header values to prevent SMTP header injection.
+ * e.g. if `to` contained "\nBcc: evil@x.com" it would inject an extra header.
+ */
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
 export const emailRouter = createTRPCRouter({
   /**
    * Check whether Corsair has stored OAuth tokens for this user's
@@ -51,10 +59,16 @@ export const emailRouter = createTRPCRouter({
     }).optional())
     .query(async ({ ctx, input }) => {
       try {
-        const listParams: any = { 
-          maxResults: 20, 
+        const listParams: {
+          maxResults: number;
+          userId: string;
+          pageToken?: string;
+          labelIds?: string[];
+          q?: string;
+        } = {
+          maxResults: 20,
           userId: "me",
-          pageToken: input?.cursor ?? undefined
+          pageToken: input?.cursor ?? undefined,
         };
         if (input?.labelIds && input.labelIds.length > 0) {
           listParams.labelIds = input.labelIds;
@@ -151,10 +165,10 @@ export const emailRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const headers = [
-        `To: ${input.to}`,
-        `Subject: Re: ${input.subject}`,
-        ...(input.inReplyTo ? [`In-Reply-To: ${input.inReplyTo}`] : []),
-        ...(input.references ? [`References: ${input.references}`] : []),
+        `To: ${sanitizeHeader(input.to)}`,
+        `Subject: Re: ${sanitizeHeader(input.subject)}`,
+        ...(input.inReplyTo ? [`In-Reply-To: ${sanitizeHeader(input.inReplyTo)}`] : []),
+        ...(input.references ? [`References: ${sanitizeHeader(input.references)}`] : []),
         "Content-Type: text/plain; charset=utf-8",
         "MIME-Version: 1.0",
         "",
@@ -182,8 +196,8 @@ export const emailRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const headers = [
-        `To: ${input.to}`,
-        `Subject: ${input.subject}`,
+        `To: ${sanitizeHeader(input.to)}`,
+        `Subject: ${sanitizeHeader(input.subject)}`,
         "Content-Type: text/plain; charset=utf-8",
         "MIME-Version: 1.0",
         "",
@@ -344,24 +358,29 @@ export const emailRouter = createTRPCRouter({
         
       if (records.length === 0) return { threads: [] };
 
-      // Fetch details from Gmail for these threads
-      // We can fetch them in parallel. Since the list might be long, we might just fetch the list or do batch get.
-      // But for simplicity, we just fetch each thread's snippet.
-      const threads = [];
-      for (const record of records) {
-        try {
-          const res = await corsair.withTenant(ctx.tenantId).gmail.api.threads.get({ userId: "me", id: record.threadId });
-          const msgs = res.messages;
-          const lastMsg = msgs && msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
-          threads.push({
-            ...res,
-            snippet: lastMsg?.snippet || "(No content)"
-          });
-        } catch(e) {
-          // Thread might be deleted in Gmail
-          console.error("Failed to fetch read later thread", record.threadId);
-        }
-      }
+      // Fetch all threads in parallel instead of sequentially to avoid N+1 latency
+      const threadResults = await Promise.all(
+        records.map(async (record) => {
+          try {
+            const res = await corsair
+              .withTenant(ctx.tenantId)
+              .gmail.api.threads.get({ userId: "me", id: record.threadId });
+            const msgs = res.messages;
+            const lastMsg = msgs && msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
+            return {
+              ...res,
+              snippet: lastMsg?.snippet ?? "(No content)",
+            };
+          } catch (e) {
+            // Thread may have been deleted from Gmail — skip it
+            console.error("Failed to fetch read later thread", record.threadId, e);
+            return null;
+          }
+        })
+      );
+      const threads = threadResults.filter(
+        (t): t is NonNullable<typeof t> => t !== null
+      );
       return { threads };
     }),
 
@@ -374,18 +393,26 @@ export const emailRouter = createTRPCRouter({
 
       if (records.length === 0) return { digest: "No emails in your Read Later folder." };
 
-      let combinedContent = "";
-      for (const record of records) {
-        try {
-          const res = await corsair.withTenant(ctx.tenantId).gmail.api.threads.get({ userId: "me", id: record.threadId });
-          const msgs = res.messages;
-          if (msgs && msgs.length > 0) {
-             const lastMsg = msgs[msgs.length - 1];
-             const snippet = lastMsg?.snippet || "";
-             combinedContent += `Thread ID: ${record.threadId}\nSnippet: ${snippet}\n\n`;
+      // Fetch all thread snippets in parallel
+      const snippetParts = await Promise.all(
+        records.map(async (record) => {
+          try {
+            const res = await corsair
+              .withTenant(ctx.tenantId)
+              .gmail.api.threads.get({ userId: "me", id: record.threadId });
+            const msgs = res.messages;
+            if (msgs && msgs.length > 0) {
+              const lastMsg = msgs[msgs.length - 1];
+              const snippet = lastMsg?.snippet ?? "";
+              return `Thread ID: ${record.threadId}\nSnippet: ${snippet}\n\n`;
+            }
+            return null;
+          } catch {
+            return null;
           }
-        } catch(e) {}
-      }
+        })
+      );
+      const combinedContent = snippetParts.filter(Boolean).join("");
 
       const { openrouter, AGENT_MODELS } = await import("@/lib/ai");
       const systemPrompt = `You are an AI Email Assistant. 
