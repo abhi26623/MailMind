@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 
 type SafeEmailFrameProps = {
   html: string;
@@ -9,7 +9,6 @@ type SafeEmailFrameProps = {
 
 const BLOCKED_TAGS = new Set([
   "script",
-  "style",
   "iframe",
   "object",
   "embed",
@@ -62,7 +61,7 @@ function sanitizeEmailHtml(html: string) {
     <base target="_blank" />
     <style>
       html, body { margin: 0; padding: 0; background: transparent; color: inherit; font: inherit; }
-      body { overflow-wrap: anywhere; }
+      body { overflow-wrap: anywhere; overflow-y: hidden; }
       img, table { max-width: 100%; }
       table { border-collapse: collapse; }
       a { color: inherit; }
@@ -77,11 +76,55 @@ export function SafeEmailFrame({ html, className }: SafeEmailFrameProps) {
   const [height, setHeight] = useState(120);
   const srcDoc = useMemo(() => sanitizeEmailHtml(html), [html]);
 
-  const resize = () => {
-    const body = iframeRef.current?.contentDocument?.body;
-    if (!body) return;
-    setHeight(Math.max(80, body.scrollHeight));
-  };
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+
+    const handleResize = () => {
+      const body = iframe.contentDocument?.body;
+      const html = iframe.contentDocument?.documentElement;
+      if (body && html) {
+        const newHeight = Math.max(
+          body.scrollHeight,
+          body.offsetHeight,
+          html.clientHeight,
+          html.scrollHeight,
+          html.offsetHeight
+        );
+        setHeight(Math.max(80, newHeight + 20)); // Add a bit of padding to avoid scrollbar
+      }
+    };
+
+    const setupObserver = () => {
+      const body = iframe.contentDocument?.body;
+      if (body) {
+        resizeObserver = new ResizeObserver(() => {
+          handleResize();
+        });
+        resizeObserver.observe(body);
+        
+        // Also observe images loading
+        const images = body.querySelectorAll("img");
+        images.forEach(img => {
+          img.addEventListener("load", handleResize);
+        });
+      }
+      handleResize();
+    };
+
+    iframe.addEventListener("load", setupObserver);
+    
+    // Initial check
+    const timer = setTimeout(handleResize, 500);
+
+    return () => {
+      iframe.removeEventListener("load", setupObserver);
+      resizeObserver?.disconnect();
+      clearTimeout(timer);
+    };
+  }, [srcDoc]);
 
   return (
     <iframe
@@ -89,7 +132,6 @@ export function SafeEmailFrame({ html, className }: SafeEmailFrameProps) {
       title="Email content"
       srcDoc={srcDoc}
       sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-      onLoad={resize}
       className={className}
       style={{ width: "100%", height, border: 0, display: "block" }}
     />
