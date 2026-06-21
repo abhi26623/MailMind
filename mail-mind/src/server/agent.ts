@@ -144,9 +144,7 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
     return `Generated script contains JavaScript that is not allowed for MailMind actions.\n\nMatched: \`${matchedPattern.toString()}\`\n\nBlocked Code:\n\`\`\`javascript\n${code}\n\`\`\``
   }
 
-  if (/\b(?:undefined|null)\b/.test(codeWithoutStrings)) {
-    return 'Generated script contains undefined or null values. Please list resources and use actual IDs instead of undefined.'
-  }
+
 
   const operationMatches = Array.from(code.matchAll(/corsair\.withTenant\(\s*["'][^"']+["']\s*\)\.(gmail|googlecalendar)\.api\.([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)/g))
   if (operationMatches.length === 0) {
@@ -402,6 +400,8 @@ TECHNICAL:
 - To process multiple items (like fetching multiple emails), write a single script that uses Promise.all rather than calling the tool multiple times.
 - IMPORTANT: When you ask the user a question or present options, you MUST append a list of 2-4 suggested quick replies at the very end of your response using this exact format: \`[SUGGESTIONS: "Option 1" | "Option 2"]\`.
   Example: "I found 3 free slots. [SUGGESTIONS: "Book 2pm tomorrow" | "What about Friday?" | "Cancel"]"
+- IMPORTANT: The Gmail API omits the 'messages' array if there are no results. Always use \`(res.messages || [])\` when mapping to avoid TypeError.
+- IMPORTANT: The Google Calendar API omits the 'items' array if there are no events. Always use \`(res.items || [])\`.
 
 CORSAIR API EXAMPLES:
 Read unread emails:
@@ -667,34 +667,14 @@ Resolve relative dates ("tomorrow", "Thursday", "next week") from today.`,
           resultContent = text || JSON.stringify(result)
           if (result.isError) {
             console.error(`[runAgent] Tool ${toolCall.function.name} failed:`, resultContent)
-            return {
-              content: formatFriendlyError(resultContent),
-              actions: Array.from(new Set(actions)),
-              suggestions: [],
-              requiresConfirmation: false,
-              pendingScript: null,
-            }
+            resultContent = JSON.stringify({ error: resultContent })
           }
         } catch (err) {
           console.error(`[runAgent] Tool ${toolCall.function.name} threw:`, err)
           resultContent = JSON.stringify({ error: String(err) })
-          return {
-            content: formatFriendlyError(err),
-            actions: Array.from(new Set(actions)),
-            suggestions: [],
-            requiresConfirmation: false,
-            pendingScript: null,
-          }
         }
       } else {
         resultContent = JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` })
-        return {
-          content: `I could not complete that action. Unknown tool: ${toolCall.function.name}`,
-          actions: Array.from(new Set(actions)),
-          suggestions: [],
-          requiresConfirmation: false,
-          pendingScript: null,
-        }
       }
 
       chatMessages.push({
