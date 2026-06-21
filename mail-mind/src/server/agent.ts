@@ -137,7 +137,6 @@ function validateGeneratedScript(code: string, tenantId: string): string | null 
     /\b(?:fs|child_process|net|tls|http|https)\b/,
     /\b(?:constructor|prototype|__proto__)\b/,
     /\bimport\s*\(/,
-    /\b(?!(?:return|await|yield|typeof|void|throw|delete|new|case|default|in|instanceof|do|else)\b)[a-zA-Z_$][a-zA-Z0-9_$]*\s*`/,
   ]
 
   const matchedPattern = blockedPatterns.find((pattern) => pattern.test(codeWithoutStrings))
