@@ -18,6 +18,7 @@ export const env = createEnv({
     GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
     CORSAIR_WEBHOOK_TOPIC: z.string().optional(),
     GEMINI_API_KEY: z.string().optional(),
+    WEBHOOK_URL: z.string().url().optional(),
     OPENROUTER_API_KEY: z.string(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
@@ -47,6 +48,7 @@ export const env = createEnv({
     GOOGLE_CLOUD_PROJECT_ID: process.env.GOOGLE_CLOUD_PROJECT_ID,
     CORSAIR_WEBHOOK_TOPIC: process.env.CORSAIR_WEBHOOK_TOPIC,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    WEBHOOK_URL: process.env.WEBHOOK_URL,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,

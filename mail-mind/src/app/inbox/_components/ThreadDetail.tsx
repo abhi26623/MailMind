@@ -240,7 +240,8 @@ export function ThreadDetail({
                 {(threadDetails.messages as any[]).map((message: any, idx: number) => {
                   const bodyText = getMessageBody(message.payload);
                   const isHtml = isHtmlEmail(bodyText);
-                  const isMe = idx % 2 !== 0;
+                  const fromHeader = message.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+                  const isMe = !fromHeader.includes(activeSenderEmail);
 
                   return (
                     <div key={message.id} className={`flex w-full ${!isHtml && isMe ? "justify-end" : "justify-start"}`}>

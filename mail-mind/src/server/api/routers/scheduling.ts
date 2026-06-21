@@ -7,6 +7,10 @@ import { eq, and } from "drizzle-orm";
 import { corsair } from "@/server/corsair";
 import crypto from "crypto";
 
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
 export const schedulingRouter = createTRPCRouter({
   /** Get active negotiations for sidebar display */
   getActive: protectedProcedure.query(async ({ ctx }) => {
@@ -30,7 +34,7 @@ export const schedulingRouter = createTRPCRouter({
   create: protectedProcedure
     .input(
       z.object({
-        recipientEmail: z.string(),
+        recipientEmail: z.string().email(),
         recipientName: z.string().optional(),
         duration: z.number(),
         proposedSlots: z.array(
@@ -66,7 +70,7 @@ export const schedulingRouter = createTRPCRouter({
 
       const raw = Buffer.from(
         [
-          `To: ${input.recipientEmail}`,
+          `To: ${sanitizeHeader(input.recipientEmail)}`,
           `Subject: Meeting request - ${input.duration} minutes`,
           `Content-Type: text/plain; charset=utf-8`,
           `MIME-Version: 1.0`,
@@ -185,7 +189,7 @@ export const schedulingRouter = createTRPCRouter({
       // 2. Send confirmation email
       const raw = Buffer.from(
         [
-          `To: ${negotiation.recipientEmail}`,
+          `To: ${sanitizeHeader(negotiation.recipientEmail)}`,
           `Subject: Meeting confirmed`,
           `Content-Type: text/plain; charset=utf-8`,
           `MIME-Version: 1.0`,

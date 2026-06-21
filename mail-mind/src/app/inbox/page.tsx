@@ -321,7 +321,7 @@ export default function InboxPage() {
   const handleSendReply = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeThread) return;
-    replyMutation.mutate({ threadId: activeThread.id, to: "me", subject: activeThread.snippet.substring(0, 50), body: replyBody });
+    replyMutation.mutate({ threadId: activeThread.id, to: activeSenderEmail, subject: activeThread.snippet.substring(0, 50), body: replyBody });
   };
   const handleSendCompose = (e: React.FormEvent) => {
     e.preventDefault();

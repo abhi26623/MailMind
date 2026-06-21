@@ -9,6 +9,7 @@ import { eq, and } from "drizzle-orm";
 import { conn } from "@/server/db";
 import crypto from "crypto";
 import { z } from "zod";
+import { env } from "@/env";
 
 /**
  * Refresh the Google OAuth access token using the refresh token.
@@ -225,7 +226,7 @@ export const connectRouter = createTRPCRouter({
 
     // 4. Register webhooks -- only for integrations the user has explicitly connected
     const hashedId = hashTenantId(ctx.tenantId);
-    const webhookUrl = `${process.env.WEBHOOK_URL}/api/webhooks?tenantId=${hashedId}`;
+    const webhookUrl = `${env.WEBHOOK_URL ?? process.env.NEXT_PUBLIC_APP_URL}/api/webhooks?tenantId=${hashedId}`;
 
     // Gmail watch -- only if user has a gmail account row
     const gmailAccountExists = await ctx.db
